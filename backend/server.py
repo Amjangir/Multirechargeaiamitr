@@ -388,6 +388,9 @@ async def do_recharge(body: RechargeInput, user=Depends(get_current_user)):
     status = "success" if random.random() < 0.9 else "failed"
     op_ref = f"TXN{uuid.uuid4().hex[:10].upper()}"
 
+    commission_rate = await get_commission_rate(user, body.service, body.operator)
+    commission = round(body.amount * commission_rate, 2) if status == "success" else 0
+
     tx = {
         "id": new_id("tx"),
         "user_id": user["user_id"],
@@ -400,7 +403,8 @@ async def do_recharge(body: RechargeInput, user=Depends(get_current_user)):
         "circle": body.circle,
         "status": status,
         "operator_ref": op_ref,
-        "commission": round(body.amount * 0.02, 2) if status == "success" else 0,
+        "commission": commission,
+        "commission_rate": commission_rate,
         "created_at": utc_now(),
     }
 
@@ -498,6 +502,210 @@ async def stats_summary(user=Depends(get_current_user)):
         for r in ["admin", "master_distributor", "distributor", "retailer"]:
             user_counts[r] = await db.users.count_documents({"role": r})
     return {"tx": result, "daily": daily, "user_counts": user_counts}
+
+
+# ---------- Password Reset ----------
+import secrets
+
+class ForgotInput(BaseModel):
+    email: EmailStr
+
+class ResetInput(BaseModel):
+    token: str
+    new_password: str
+
+@api.post("/auth/forgot-password")
+async def forgot_password(body: ForgotInput):
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email})
+    token = secrets.token_urlsafe(24)
+    if user:
+        expires_at = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        await db.password_reset_tokens.insert_one({
+            "token": token,
+            "user_id": user["user_id"],
+            "expires_at": expires_at,
+            "used": False,
+            "created_at": utc_now(),
+        })
+        logger.info(f"[PASSWORD RESET] Link for {email}: /reset-password?token={token}")
+    # Always return the token for demo purposes so the UI can show it (mock email flow)
+    return {"ok": True, "reset_token": token if user else None}
+
+@api.post("/auth/reset-password")
+async def reset_password(body: ResetInput):
+    tok = await db.password_reset_tokens.find_one({"token": body.token, "used": False})
+    if not tok:
+        raise HTTPException(400, "Invalid or used token")
+    expires_at = tok["expires_at"]
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(400, "Token expired")
+    await db.users.update_one({"user_id": tok["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    await db.password_reset_tokens.update_one({"token": body.token}, {"$set": {"used": True}})
+    return {"ok": True}
+
+
+# ---------- Emergent OAuth Session Exchange ----------
+import requests as _http
+
+class SessionInput(BaseModel):
+    session_id: str
+
+@api.post("/auth/session")
+async def auth_session(body: SessionInput):
+    try:
+        r = _http.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": body.session_id},
+            timeout=10,
+        )
+    except Exception:
+        raise HTTPException(400, "Session exchange failed")
+    if r.status_code != 200:
+        raise HTTPException(400, "Invalid session")
+    data = r.json()
+    email = (data.get("email") or "").lower()
+    if not email:
+        raise HTTPException(400, "Email missing from Google session")
+    user = await db.users.find_one({"email": email})
+    if not user:
+        user = {
+            "user_id": new_id("usr"),
+            "name": data.get("name") or email.split("@")[0],
+            "email": email,
+            "password_hash": "",
+            "role": "retailer",
+            "phone": None,
+            "parent_id": None,
+            "wallet_balance": 0.0,
+            "status": "active",
+            "picture": data.get("picture"),
+            "created_at": utc_now(),
+        }
+        await db.users.insert_one(user)
+    else:
+        await db.users.update_one({"email": email}, {"$set": {
+            "name": data.get("name") or user.get("name"),
+            "picture": data.get("picture"),
+        }})
+    token = create_token(user["user_id"], email, user["role"])
+    user.pop("password_hash", None)
+    user.pop("_id", None)
+    return {"token": token, "user": user}
+
+
+# ---------- Commission Rules ----------
+DEFAULT_COMMISSION = 0.02
+
+class CommissionRuleInput(BaseModel):
+    service: Optional[str] = None
+    operator: Optional[str] = None
+    user_id: Optional[str] = None
+    role: Optional[Role] = None
+    rate: float
+
+async def get_commission_rate(user, service, operator) -> float:
+    checks = [
+        {"user_id": user["user_id"], "service": service, "operator": operator},
+        {"user_id": user["user_id"], "service": service, "operator": None},
+        {"user_id": user["user_id"], "service": None, "operator": None},
+        {"user_id": None, "role": None, "service": service, "operator": operator},
+        {"user_id": None, "role": None, "service": service, "operator": None},
+        {"user_id": None, "role": user["role"], "service": None, "operator": None},
+    ]
+    for q in checks:
+        r = await db.commission_rules.find_one(q)
+        if r:
+            return float(r["rate"])
+    return DEFAULT_COMMISSION
+
+@api.get("/commissions")
+async def list_commissions(user=Depends(require_role("admin"))):
+    docs = await db.commission_rules.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return docs
+
+@api.post("/commissions")
+async def create_commission(body: CommissionRuleInput, user=Depends(require_role("admin"))):
+    if body.rate < 0 or body.rate > 1:
+        raise HTTPException(400, "Rate must be between 0 and 1 (e.g. 0.025 for 2.5%)")
+    doc = {
+        "id": new_id("cm"),
+        "service": body.service or None,
+        "operator": body.operator or None,
+        "user_id": body.user_id or None,
+        "role": body.role or None,
+        "rate": body.rate,
+        "created_at": utc_now(),
+    }
+    await db.commission_rules.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api.delete("/commissions/{rule_id}")
+async def delete_commission(rule_id: str, user=Depends(require_role("admin"))):
+    r = await db.commission_rules.delete_one({"id": rule_id})
+    if r.deleted_count == 0:
+        raise HTTPException(404, "Rule not found")
+    return {"ok": True}
+
+
+# ---------- User & Profile Edit ----------
+class UpdateUserInput(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[Role] = None
+    status: Optional[str] = None
+
+class UpdateMeInput(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+
+@api.patch("/users/{target_id}")
+async def update_user(target_id: str, body: UpdateUserInput, user=Depends(get_current_user)):
+    target = await db.users.find_one({"user_id": target_id})
+    if not target:
+        raise HTTPException(404, "User not found")
+    if user["role"] != "admin":
+        allowed = False
+        if target.get("parent_id") == user["user_id"]:
+            allowed = True
+        elif user["role"] == "master_distributor" and target.get("parent_id"):
+            parent = await db.users.find_one({"user_id": target["parent_id"]}, {"parent_id": 1})
+            if parent and parent.get("parent_id") == user["user_id"]:
+                allowed = True
+        if not allowed:
+            raise HTTPException(403, "Not allowed to edit this user")
+    updates = {}
+    if body.name is not None: updates["name"] = body.name
+    if body.phone is not None: updates["phone"] = body.phone
+    if body.password: updates["password_hash"] = hash_password(body.password)
+    if body.status is not None:
+        if body.status not in ("active", "blocked"):
+            raise HTTPException(400, "Invalid status")
+        updates["status"] = body.status
+    if body.role is not None:
+        if user["role"] != "admin":
+            raise HTTPException(403, "Only admin can change roles")
+        updates["role"] = body.role
+    if updates:
+        await db.users.update_one({"user_id": target_id}, {"$set": updates})
+    return {"ok": True}
+
+@api.patch("/me")
+async def update_me(body: UpdateMeInput, user=Depends(get_current_user)):
+    updates = {}
+    if body.name is not None: updates["name"] = body.name
+    if body.phone is not None: updates["phone"] = body.phone
+    if body.password: updates["password_hash"] = hash_password(body.password)
+    if updates:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    return {"ok": True}
 
 
 # ---------- Mount ----------

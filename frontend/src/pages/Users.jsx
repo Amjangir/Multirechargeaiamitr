@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ROLE_LABELS, formatErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Plus, Loader2, ShieldOff, ShieldCheck } from "lucide-react";
+import { Plus, Loader2, ShieldOff, ShieldCheck, Pencil } from "lucide-react";
 
 const CREATABLE_ROLES = {
   admin: ["master_distributor", "distributor", "retailer"],
@@ -14,6 +14,7 @@ export default function UsersPage() {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const load = () => { api.get("/users").then((r) => setRows(r.data)); };
   useEffect(() => { load(); }, []);
@@ -21,10 +22,10 @@ export default function UsersPage() {
   const toggle = async (u) => {
     const next = u.status === "active" ? "blocked" : "active";
     try {
-      await api.patch(`/users/${u.user_id}/status?status=${next}`);
+      await api.patch(`/users/${u.user_id}`, { status: next });
       toast.success(`${u.name} is now ${next}`);
       load();
-    } catch (e) { toast.error("Failed to update"); }
+    } catch (e) { toast.error(formatErr(e)); }
   };
 
   return (
@@ -71,11 +72,18 @@ export default function UsersPage() {
                   <span className={`text-[10px] uppercase tracking-[0.2em] ${u.status === "active" ? "text-emerald-300" : "text-red-300"}`}>{u.status}</span>
                 </td>
                 <td className="p-4 text-right">
-                  {u.user_id !== user.user_id && u.role !== "admin" && (
-                    <button data-testid={`toggle-${u.user_id}`} onClick={() => toggle(u)} className="btn-ghost text-xs inline-flex items-center gap-1">
-                      {u.status === "active" ? <ShieldOff size={13} /> : <ShieldCheck size={13} />}
-                      {u.status === "active" ? "Block" : "Unblock"}
-                    </button>
+                  {u.user_id !== user.user_id && (
+                    <div className="inline-flex gap-2">
+                      <button data-testid={`edit-${u.user_id}`} onClick={() => setEditing(u)} className="btn-ghost text-xs inline-flex items-center gap-1">
+                        <Pencil size={13} /> Edit
+                      </button>
+                      {u.role !== "admin" && (
+                        <button data-testid={`toggle-${u.user_id}`} onClick={() => toggle(u)} className="btn-ghost text-xs inline-flex items-center gap-1">
+                          {u.status === "active" ? <ShieldOff size={13} /> : <ShieldCheck size={13} />}
+                          {u.status === "active" ? "Block" : "Unblock"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>
@@ -86,6 +94,9 @@ export default function UsersPage() {
 
       {showCreate && (
         <CreateUserModal user={user} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); load(); }} />
+      )}
+      {editing && (
+        <EditUserModal target={editing} viewer={user} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       )}
     </div>
   );
@@ -103,9 +114,7 @@ function CreateUserModal({ user, onClose, onCreated }) {
       await api.post("/users", f);
       toast.success("User created");
       onCreated();
-    } catch (e) {
-      toast.error(formatErr(e));
-    } finally { setBusy(false); }
+    } catch (e) { toast.error(formatErr(e)); } finally { setBusy(false); }
   };
 
   return (
@@ -124,6 +133,62 @@ function CreateUserModal({ user, onClose, onCreated }) {
         <input data-testid="create-password" type="password" required placeholder="Password" className="input-dark" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
         <button data-testid="create-submit" disabled={busy} className="btn-primary w-full flex items-center gap-2 justify-center">
           {busy && <Loader2 size={16} className="animate-spin" />} Create
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function EditUserModal({ target, viewer, onClose, onSaved }) {
+  const [f, setF] = useState({
+    name: target.name,
+    phone: target.phone || "",
+    password: "",
+    role: target.role,
+    status: target.status,
+  });
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    const body = {
+      name: f.name,
+      phone: f.phone,
+      status: f.status,
+    };
+    if (f.password) body.password = f.password;
+    if (viewer.role === "admin" && f.role !== target.role) body.role = f.role;
+    try {
+      await api.patch(`/users/${target.user_id}`, body);
+      toast.success("User updated");
+      onSaved();
+    } catch (e) { toast.error(formatErr(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+      <form onSubmit={submit} className="card-elevated p-8 w-full max-w-md space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-semibold" style={{ fontFamily: "Outfit" }}>Edit {target.name}</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-sm">Cancel</button>
+        </div>
+        <input data-testid="edit-name" required placeholder="Full name" className="input-dark" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <input data-testid="edit-phone" placeholder="Phone" className="input-dark" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+        <input data-testid="edit-password" type="password" placeholder="New password (optional)" className="input-dark" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+        {viewer.role === "admin" && target.role !== "admin" && (
+          <select data-testid="edit-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} className="input-dark">
+            {Object.entries(ROLE_LABELS).filter(([k]) => k !== "admin").map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+          </select>
+        )}
+        {target.role !== "admin" && (
+          <select data-testid="edit-status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} className="input-dark">
+            <option value="active">Active</option>
+            <option value="blocked">Blocked</option>
+          </select>
+        )}
+        <button data-testid="edit-submit" disabled={busy} className="btn-primary w-full flex items-center gap-2 justify-center">
+          {busy && <Loader2 size={16} className="animate-spin" />} Save
         </button>
       </form>
     </div>

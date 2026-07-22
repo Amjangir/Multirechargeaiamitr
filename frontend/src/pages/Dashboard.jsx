@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { api, ROLE_LABELS } from "@/lib/api";
+import { api, ROLE_LABELS, SERVICES } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Wallet, TrendingUp, Receipt, CheckCircle2, XCircle, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Wallet, TrendingUp, Receipt, CheckCircle2, XCircle, Smartphone, Tv, Zap, Wifi, ArrowRight } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
+
+const ICON = { Smartphone, Tv, Zap, Wifi };
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -49,6 +52,36 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      {/* Quick Recharge tiles */}
+      <div className="card-surface p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold" style={{ fontFamily: "Outfit" }}>Quick recharge</h3>
+            <p className="text-xs text-slate-500 mt-1">Jump straight into a top-up flow.</p>
+          </div>
+          <Link to="/recharge" data-testid="dash-recharge-all" className="text-cyan-300 text-sm hover:underline inline-flex items-center gap-1">
+            All services <ArrowRight size={14} />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {SERVICES.map((s) => {
+            const Ic = ICON[s.icon];
+            return (
+              <Link
+                key={s.code}
+                to={`/recharge?service=${s.code}`}
+                data-testid={`dash-quick-${s.code}`}
+                className="card-elevated p-5 hover:border-cyan-400/40 transition-colors block"
+              >
+                <Ic size={22} className="text-cyan-300" />
+                <div className="mt-3 font-medium">{s.name}</div>
+                <div className="text-xs text-slate-500 mt-1">Start recharge</div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 card-surface p-6">

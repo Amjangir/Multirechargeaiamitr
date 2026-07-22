@@ -1,0 +1,54 @@
+{
+  "summary": "Retested all 9 requested flows for the new-feature iteration (password reset, commission CRUD, commission-at-recharge, user edit, profile edit, dashboard quick-tiles, Google OAuth button visibility, admin-only Commissions nav, and the 422-crash retest). 13/14 backend tests pass. UI flows for forgot-password → reset → login-with-new → Settings→change-back → login-with-original all PASS. Commissions CRUD in the UI works (add role rule, add global rule, delete first, list refreshes). Admin sidebar shows Commissions; retailer sidebar has only Dashboard/Recharge/Wallet/Transactions/Settings — no Commissions and no Network. Dashboard quick-tiles preselect the correct service on /recharge (mobile_prepaid, dth, electricity, data_card). Google buttons exist with correct testids on /login and /signup. The previously-reported 422 CRA overlay crash is FIXED: submitting 'foo@bar.test' in Users → Add user now shows a readable sonner toast ('value is not a valid email address: The part after the @-sign is a special-use or reserved name…') and no overlay. HOWEVER a NEW critical backend bug is confirmed: role+service+operator commission rules are silently ignored by get_commission_rate() — a rule {role:retailer, service:mobile_prepaid, operator:airtel, rate:0.05} is never matched, so the recharge falls through to default 2%. Global service+operator rules DO work.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/recharge (via get_commission_rate)",
+        "issue": "get_commission_rate() lookup list is missing the {role+service+operator} and {role+service} combos. A commission rule scoped to a role AND a specific service/operator never matches — the code falls through to the default 2%. The 6 checks all require role-scoped rules to have service=None AND operator=None, so any role-scoped rule with a service/operator filter is dead data. Verified: rule {role:retailer, service:mobile_prepaid, operator:airtel, rate:0.05} → applied rate on retailer recharge was 0.02 (default). Same rule as {role:null, service:mobile_prepaid, operator:airtel, rate:0.05} (global) → correctly applied 0.05.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {"endpoint": "GET /api/commissions", "issue": "Rules created with role='retailer' show up in the /commissions table but silently do nothing at recharge time — UX is misleading."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Users → Edit → set new password → retailer relogin",
+        "issue": "Playwright test could not locate the edit-{uid} button on the newly-created retailer row within 1500ms of create-submit (edit_testid returned empty string). Consequence: the Edit modal was never opened, so the password patch was not sent, and retailer login with the new password failed while the old password still worked. Backend PATCH /api/users/{id} with password is verified working via pytest (TestUserEdit.test_admin_can_edit_user_and_change_password PASSES). Suspected root cause is a UI list-refresh race after create — the row is present but paint may lag; not confirmed as a real bug. Main agent should retest manually.",
+        "affected_selectors": ["[data-testid^=\"edit-\"]"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Dashboard", "issues": ["Recharts warning 'width(-1) height(-1)' printed to console when the volume chart container is initially 0-sized on first paint. Cosmetic — no visual impact."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix get_commission_rate() in /app/backend/server.py — add rule-lookup patterns for {user_id:None, role:X, service:S, operator:O}, {user_id:None, role:X, service:S, operator:None}, and possibly {user_id:X, service:S, operator:O} already covered. Simplest fix: change the last three role checks to include service/operator variants BEFORE falling to role-only + default. e.g. append checks {user_id:None, role:user['role'], service:service, operator:operator}, {user_id:None, role:user['role'], service:service, operator:None} before the role-only match, and put role-only last.",
+    "MED: In Users.jsx EditUserModal, after PATCH success also trigger a small optimistic UI refresh (currently only onSaved()→load() which is fine, but the Playwright race suggests the DOM update lag is noticeable). Consider showing a spinner overlay on the row while updates propagate.",
+    "LOW: The commission-rules table doesn't reveal which rule will actually apply; add a tooltip or badge indicating role-scoped rules with service/operator are 'preview only' until backend fix lands."
+  ],
+  "critical_code_review_comments": [
+    "server.py get_commission_rate is a hidden matcher — no test covered the role+service+operator combo. Add unit test in backend when fixing.",
+    "server.py — /auth/session accepts an invalid session_id and returns 400, but the code also does a synchronous `requests.get` inside an async endpoint (blocks event loop). Consider httpx.AsyncClient for the Emergent session exchange.",
+    "server.py forgot-password always returns the reset_token in the response body. Fine for demo but should be gated by an env flag (e.g. DEMO_MODE=true) to prevent token disclosure in production.",
+    "Users.jsx EditUserModal always sends `status: f.status` in the body even when unchanged; harmless because PATCH is additive, but a diff-based body would be cleaner and cheaper.",
+    "Recharge.jsx line 23 still calls `r.data[service][0].code` without optional chaining on `r.data[service]` — will throw if a future service code is added to SERVICES but missing in the OPERATORS map."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend.py (new)"
+  ],
+  "success_rate": {"backend": "13/14 (93%)", "frontend": "8/9 flows PASS; 1 UI-timing flake on user-edit-password"},
+  "test_credentials": "Admin: admin@rechargepro.com / Admin@12345 — restored to original at end of run.",
+  "seed_data_creation": "Cleaned up at end of run: dropped commission_rules, password_reset_tokens and any TEST_* users. Backend DB is back to the initial state.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite lives at /app/backend/tests/test_backend.py — run with `pytest backend/tests/test_backend.py -v`. The commission-lookup bug will make TestRechargeCommission fail until server.py is patched. For UI, all data-testids referenced in the review request are present and functional (see verified list in results). Admin nav testids: nav-dashboard, nav-recharge, nav-wallet, nav-transactions, nav-users, nav-commissions, nav-settings. Retailer nav testids: nav-dashboard, nav-recharge, nav-wallet, nav-transactions, nav-settings. Google buttons: google-login-btn (login), google-signup-btn (signup) — do NOT click through (external redirect). Reset password link testid: reset-token-box (contains anchor).",
+  "rca of the issue": "Root cause of the failed commission-at-recharge test: /app/backend/server.py::get_commission_rate defines only 6 candidate query patterns; none of them ever match a document whose fields are {user_id:None, role:'retailer', service:'mobile_prepaid', operator:'airtel'}. Reproduction: (1) Admin creates rule role=retailer/service=mobile_prepaid/operator=airtel/rate=0.05, (2) retailer with wallet ≥100 recharges mobile_prepaid+airtel ₹100, (3) resulting tx.commission_rate is 0.02 (default) or the value of whatever role-only rule exists, NOT 0.05. Mitigation: extend the `checks` list in get_commission_rate() to include role+service+operator and role+service combos before the role-only fallback. Suggested patch: `checks = [ {user_id: uid, service: s, operator: o}, {user_id: uid, service: s, operator: None}, {user_id: uid, service: None, operator: None}, {user_id: None, role: None, service: s, operator: o}, {user_id: None, role: None, service: s, operator: None}, {user_id: None, role: r, service: s, operator: o}, {user_id: None, role: r, service: s, operator: None}, {user_id: None, role: r, service: None, operator: None} ]`."
+}

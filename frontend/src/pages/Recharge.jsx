@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, SERVICES, formatErr } from "@/lib/api";
 import { toast } from "sonner";
 import { Smartphone, Tv, Zap, Wifi, Loader2, CheckCircle2, XCircle } from "lucide-react";
@@ -6,7 +7,9 @@ import { Smartphone, Tv, Zap, Wifi, Loader2, CheckCircle2, XCircle } from "lucid
 const ICON = { Smartphone, Tv, Zap, Wifi };
 
 export default function Recharge() {
-  const [service, setService] = useState("mobile_prepaid");
+  const [sp] = useSearchParams();
+  const initialService = sp.get("service") && SERVICES.find((s) => s.code === sp.get("service")) ? sp.get("service") : "mobile_prepaid";
+  const [service, setService] = useState(initialService);
   const [operators, setOperators] = useState({});
   const [operator, setOperator] = useState("");
   const [number, setNumber] = useState("");

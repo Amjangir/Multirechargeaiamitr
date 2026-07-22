@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import {
-  LayoutDashboard, Wallet, Zap, Receipt, Users, Settings, LogOut, ShieldCheck,
+  LayoutDashboard, Wallet, Zap, Receipt, Users, Settings, LogOut, ShieldCheck, Percent,
 } from "lucide-react";
 import { ROLE_LABELS } from "@/lib/api";
 
@@ -13,6 +13,7 @@ const NAV = [
   { to: "/wallet", label: "Wallet", icon: Wallet, roles: ["admin", "master_distributor", "distributor", "retailer"] },
   { to: "/transactions", label: "Transactions", icon: Receipt, roles: ["admin", "master_distributor", "distributor", "retailer"] },
   { to: "/users", label: "Network", icon: Users, roles: ["admin", "master_distributor", "distributor"] },
+  { to: "/commissions", label: "Commissions", icon: Percent, roles: ["admin"] },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["admin", "master_distributor", "distributor", "retailer"] },
 ];
 
