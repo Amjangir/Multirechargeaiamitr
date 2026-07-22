@@ -1,0 +1,37 @@
+{
+  "summary": "Retested all 6 previously-reported flows on the frontend. The useEffect wrapping fix works — Admin can navigate to /users, /wallet, /transactions, /recharge without the 'destroy is not a function' overlay. User creation for all 3 roles works, admin credit shows up in the retailer's ledger (+₹500.00), retailer can recharge all 4 services (all succeeded), Transactions filters work, and Sign out clears session and redirects to /login. However, a NEW critical runtime crash was discovered: when the backend returns HTTP 422 (Pydantic validation error) the frontend tries to render `error.response.data.detail` (an array of objects) directly inside `toast.error(...)`, which throws 'Objects are not valid as a React child' and shows the CRA error overlay. Reproduced on Users → Add user with an email having a .test TLD (rejected by EmailStr). The same anti-pattern exists in Wallet.jsx and Recharge.jsx and can crash the app on any 422.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/users, /api/auth/register", "issue": "EmailStr (email-validator) rejects reserved TLDs like .test / .example / .invalid with a 422. This is technically correct RFC behaviour but is easy to hit during testing. Consider using email_validator with check_deliverability=False or documenting allowed TLDs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Users.jsx (line 107), Wallet.jsx (line 35), Recharge.jsx (line 40)", "issue": "toast.error(e?.response?.data?.detail || 'Failed') crashes React with 'Objects are not valid as a React child (found: object with keys {type, loc, msg, input, ctx})' whenever the backend returns a 422 Pydantic validation error, because FastAPI's `detail` is a list of dicts, not a string. This surfaces the CRA runtime error overlay and blocks the user from continuing until reload.", "selector": "[data-testid=\"create-submit\"], [data-testid=\"wallet-submit\"], [data-testid=\"recharge-submit\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Global", "issues": ["React dev-mode hydration warning: '<span> cannot be a child of <option>' triggered by the visual-edit wrapper span injected around option content in Wallet.jsx line 65. Cosmetic in dev; will not appear in prod build but pollutes the console."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Harden all `toast.error(e?.response?.data?.detail || 'Failed')` call sites (Users.jsx, Wallet.jsx, Recharge.jsx and any other axios catch blocks) to coerce array/object detail into a string, e.g. `const d = e?.response?.data?.detail; const msg = Array.isArray(d) ? d.map(x => x.msg).join(', ') : (typeof d === 'string' ? d : 'Failed'); toast.error(msg);` — ideally centralise in `lib/api.js` interceptor.",
+    "Optional: relax email TLD validation on backend (set check_deliverability=False) so `.test` / `.example` addresses are accepted, since the UI has no client-side hint about which TLDs are rejected."
+  ],
+  "critical_code_review_comments": [
+    "Duplicate error-handling code in every page's submit() catch block — extract a helper `extractApiError(err)` into /lib/api.js to avoid repeating this bug elsewhere.",
+    "Recharge.jsx line 20: `setOperator(r.data[service][0].code)` will throw if the backend response is missing the current service key. Guard with optional chaining.",
+    "Wallet.jsx: admin's 'credit' ledger view is empty because backend only writes a ledger row on the target user. UX-wise it's confusing — admin cannot see the history of credits they issued from their own /wallet page. Consider showing a 'System ledger' for admin or writing a mirror row with type='admin_issue'.",
+    "Users.jsx: no server-side validation feedback on individual fields; single toast is the only error surface — combined with the 422 rendering bug this makes debugging user-creation failures painful."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not retested (previously 100%)", "frontend": "83% (5/6 scenarios pass; 1 latent crash on 422 responses)"},
+  "test_credentials": "Admin: admin@rechargepro.com / Admin@12345. Retailer created during this run: ret1784728651@rechargepro.example.com / Test@12345 (balance ₹460.80 after 4 recharges).",
+  "seed_data_creation": "Created 1 master_distributor, 1 distributor, 1 retailer under admin (all with domain @rechargepro.example.com and timestamp suffix). 4 successful recharges (mobile_prepaid, dth, electricity, data_card) at ₹10 each executed by the retailer.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The original useEffect crash fix on Users/Wallet/Transactions is verified. The NEW crash is triggered whenever the backend returns HTTP 422 anywhere — quickest repro: log in as admin, /users → Add user, use email 'foo@bar.test' → click Create → CRA overlay 'Objects are not valid as a React child'. After the fix, retest by triggering a 422 on each form (Users create with .test email, Wallet transfer with amount<=0, Recharge with amount<=0) — none should show the overlay and each should display a readable toast.",
+  "rca of the issue": "Root cause: FastAPI returns validation errors as `{detail: [{type, loc, msg, input, ctx}, ...]}`. Frontend does `toast.error(e?.response?.data?.detail || 'Failed')` which passes the array of objects directly to sonner; sonner renders it as a React child and React throws 'Objects are not valid as a React child'. In dev this surfaces the CRA overlay and blocks the page. Reproduction steps: (1) Login admin, (2) go to /users, (3) click Add user, (4) fill any name/password + email ending in `.test`, role=distributor, (5) submit → overlay appears. Mitigation: coerce non-string detail values to string before passing to toast (see action_items). Same pattern lives in Wallet.jsx submit() and Recharge.jsx submit()."
+}
