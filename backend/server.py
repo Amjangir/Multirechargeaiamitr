@@ -615,6 +615,8 @@ async def get_commission_rate(user, service, operator) -> float:
         {"user_id": user["user_id"], "service": None, "operator": None},
         {"user_id": None, "role": None, "service": service, "operator": operator},
         {"user_id": None, "role": None, "service": service, "operator": None},
+        {"user_id": None, "role": user["role"], "service": service, "operator": operator},
+        {"user_id": None, "role": user["role"], "service": service, "operator": None},
         {"user_id": None, "role": user["role"], "service": None, "operator": None},
     ]
     for q in checks:
