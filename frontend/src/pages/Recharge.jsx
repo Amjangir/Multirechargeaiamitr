@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, SERVICES } from "@/lib/api";
+import { api, SERVICES, formatErr } from "@/lib/api";
 import { toast } from "sonner";
 import { Smartphone, Tv, Zap, Wifi, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
@@ -37,7 +37,7 @@ export default function Recharge() {
       if (data.status === "success") toast.success(`Recharge success · Ref ${data.operator_ref}`);
       else toast.error("Recharge failed. No amount deducted.");
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Recharge error");
+      toast.error(formatErr(e));
     } finally {
       setBusy(false);
     }

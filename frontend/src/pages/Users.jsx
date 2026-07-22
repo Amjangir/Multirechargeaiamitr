@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ROLE_LABELS } from "@/lib/api";
+import { api, ROLE_LABELS, formatErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Plus, Loader2, ShieldOff, ShieldCheck } from "lucide-react";
@@ -104,7 +104,7 @@ function CreateUserModal({ user, onClose, onCreated }) {
       toast.success("User created");
       onCreated();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Failed");
+      toast.error(formatErr(e));
     } finally { setBusy(false); }
   };
 

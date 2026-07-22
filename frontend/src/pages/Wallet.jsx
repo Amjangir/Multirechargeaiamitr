@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ROLE_LABELS } from "@/lib/api";
+import { api, ROLE_LABELS, formatErr } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { ArrowDownCircle, ArrowUpCircle, Loader2 } from "lucide-react";
@@ -32,7 +32,7 @@ export default function WalletPage() {
       setAmount("");
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Failed");
+      toast.error(formatErr(e));
     } finally { setBusy(false); }
   };
 
