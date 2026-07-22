@@ -1,0 +1,130 @@
+{
+  "theme": "dark",
+  "project_type": "hybrid_fullstack",
+  "typography": {
+    "primary_heading_font": "Outfit",
+    "secondary_body_font": "Manrope",
+    "font_install_instructions": "Import Outfit and Manrope from Google Fonts. DO NOT use Inter, Roboto, or Space Grotesk.",
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight",
+      "h3": "text-xl sm:text-2xl font-medium tracking-tight",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-300",
+      "small_labels": "text-xs font-bold uppercase tracking-[0.2em] text-slate-400"
+    }
+  },
+  "colors": {
+    "archetype": "Electric & Neon Tech (Modified for Fintech Trust)",
+    "palette": {
+      "background": "#06080D",
+      "surface": "#0D111C",
+      "surface_elevated": "#151B2B",
+      "primary_accent": "#00E5FF",
+      "secondary_accent": "#7000FF",
+      "success": "#00E676",
+      "warning": "#FFEA00",
+      "danger": "#FF3B30",
+      "text_primary": "#FFFFFF",
+      "text_secondary": "#94A3B8",
+      "border": "rgba(255, 255, 255, 0.08)"
+    },
+    "rules": [
+      "Never use pure black (#000000). Always use tinted dark blue-grey (#06080D).",
+      "Use #00E5FF (Cyan) for primary CTAs and interactive states.",
+      "Ensure all text meets minimum 4.5:1 contrast against dark backgrounds."
+    ]
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Used for sticky headers, floating navs, and modal overlays. Use backdrop-blur-xl bg-[#06080D]/60 with a 1px inner border of border-white/10.",
+    "textures": "Apply subtle noise/grain texture overlay (opacity-20) to the main background of the landing page to break flat digital feel.",
+    "shadows": "Use soft, diffuse ambient shadows for elevated elements: shadow-[0_8px_32px_rgba(0,0,0,0.12)].",
+    "borders": "Expose grid borders in dashboards. Items should have border-r border-b border-white/5 to create a technical, data-rich look."
+  },
+  "components": {
+    "buttons": "Pill-shaped (rounded-full) or sharp slightly-rounded (rounded-md) for dashboard. Apply hover:bg-cyan-400 hover:text-black transition-colors.",
+    "cards": "For marketing: use glassmorphism with asymmetric layouts. For dashboard: flat surface (#0D111C) with rounded-lg, 1px border-white/10, no heavy shadow.",
+    "forms": "Use Shadcn Form components. Inputs should have bg-transparent or elevated surface background with distinct focus rings (focus:ring-2 focus:ring-cyan-500).",
+    "tables": "Dense rows (h-12), left-align text, right-align numbers. Hover states on rows with bg-white/5.",
+    "charts": "Use Recharts with dark-mode specific semantic colors (cyan for wallet balances, green/red for commission trends).",
+    "navigation": "Sticky top header with glassmorphism on landing. Left sidebar on dashboard with collapsed/expanded states."
+  },
+  "grids": {
+    "marketing_bento": "grid-cols-1 md:grid-cols-12 gap-8. Create asymmetric bento grids (e.g., col-span-8 row-span-2 for hero feature, col-span-4 for secondary).",
+    "dashboard_density": "grid-cols-1 md:grid-cols-4 gap-6. Summary cards take col-span-1. Charts take col-span-3. Lists take col-span-1."
+  },
+  "layouts": {
+    "landing_page": "Hero section with large typographic overlay, asymmetric feature bento grid, dark textured background, floating glass header.",
+    "dashboard_container": "Flex row layout. Fixed sidebar (w-64) + main content area (flex-1). Main content area needs p-6 or p-8.",
+    "roles": {
+      "admin": "Focus on high-level system metrics, table-heavy views for user management.",
+      "master_distributor": "Focus on downline charts and aggregate commissions.",
+      "distributor": "Focus on retailer network and wallet transfers.",
+      "retailer": "Action-oriented layout: Large Recharge form (mobile, DTH, etc.) in the center, wallet balance fixed prominently."
+    }
+  },
+  "motion": {
+    "interactions": "All buttons/links must have hover:scale-[1.02] active:scale-95 transition-transform.",
+    "entrances": "Staggered fade-up for dashboard widgets and table rows.",
+    "page_transitions": "Smooth opacity transition on route changes."
+  },
+  "accessibility": {
+    "focus_states": "Visible focus outlines required for all interactive elements.",
+    "contrast": "Always verify APCA contrast. Do not put thin grey text on dark grey backgrounds.",
+    "data_testid": "MANDATORY: Add data-testid attributes to all inputs, buttons, tables, and nav links (e.g., data-testid='login-button', data-testid='recharge-submit')."
+  },
+  "media": {
+    "icons": "Use @phosphor-icons/react or lucide-react. Duotone weight for marketing, Regular/Bold for dashboard.",
+    "image_treatment": "Images in marketing should have dark overlays (bg-black/40) to blend with the dark theme."
+  },
+  "3d_libraries": {
+    "usage": "Optional: Use react-tsparticles for a subtle floating node network background on the landing page or auth screen to represent digital transactions."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1618058313199-9037610ec161?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBmaW50ZWNoJTIwYWJzdHJhY3QlMjB0cmFuc2FjdGlvbnxlbnwwfHx8fDE3ODQ3MjcxNzJ8MA&ixlib=rb-4.1.0&q=85",
+      "category": "Hero Background",
+      "description": "Blue and white light streaks representing fast, digital fintech transactions."
+    },
+    {
+      "url": "https://images.pexels.com/photos/29506609/pexels-photo-29506609.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "category": "Auth Background / Feature Card",
+      "description": "Abstract neon geometric design on dark backdrop for login or sign-up pages."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1649359569078-c445b3c6a116?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBmaW50ZWNoJTIwYWJzdHJhY3QlMjB0cmFuc2FjdGlvbnxlbnwwfHx8fDE3ODQ3MjcxNzJ8MA&ixlib=rb-4.1.0&q=85",
+      "category": "Feature Image",
+      "description": "Hand holding card in front of a computer, used for Recharge/Wallet feature descriptions."
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1577415124269-fc1140a69e91",
+      "category": "Testimonial / Network",
+      "description": "Business people using smartphone, representing the distributor/retailer network."
+    }
+  ],
+  "instructions_to_main_agent": {
+    "step_1": "Setup React, Tailwind, and Shadcn UI. Import Google Fonts (Outfit, Manrope).",
+    "step_2": "Define standard Tailwind config with the specified dark color palette (#06080D background).",
+    "step_3": "Build the marketing landing page using raw HTML/Tailwind for asymmetric bento sections and glassmorphism headers.",
+    "step_4": "Build auth pages (Login/Signup) with Google OAuth buttons.",
+    "step_5": "Build the App Shell (Sidebar + Topbar) for the dashboard.",
+    "step_6": "Implement Role-based dashboard views. Admin (Management), MD/Distributor (Network/Commissions), Retailer (Recharge form).",
+    "step_7": "Integrate data visualization (Recharts) for commission and transaction summaries.",
+    "rule_check": "Ensure no complete transparent backgrounds on dropdowns. Check data-testid tags."
+  },
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": {
+    "avoid_ai_slop": "Do not make generic centered layouts. Use layered depth, asymmetric bento grids, and z-index hierarchy.",
+    "dark_mode_rules": "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients. Add subtle grain textures.",
+    "transitions": "You MUST NOT apply universal transition (e.g., transition: all). Target specific properties.",
+    "text_alignment": "You MUST NOT center align the app container. No .App { text-align: center; }.",
+    "components": "Use sonner for toasts. Customize Shadcn elements (e.g., tablist h-auto instead of fixed h-9).",
+    "icons": "Use lucide-react. NEVER use emojis like 🤖, 🧠, 💡 for UI icons.",
+    "placeholders": "Missing images must use the provided image_urls. NEVER use placeholder text or dummy image services."
+  },
+  "GENERAL_UI_UX_DESIGN_GUIDELINES": {
+    "spacing": "Use 2-3x more spacing than typical defaults (e.g., p-8 or p-12 for containers) to create premium feel.",
+    "optical_alignment": "Align elements optically (e.g., adjust padding for icons inside buttons so they feel centered visually).",
+    "hierarchy": "Use size and contrast to establish clear information hierarchy. Do not rely solely on font-weight.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  }
+}
