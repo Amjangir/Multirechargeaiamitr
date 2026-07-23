@@ -388,7 +388,7 @@ async def do_recharge(body: RechargeInput, user=Depends(get_current_user)):
     status = "success" if random.random() < 0.9 else "failed"
     op_ref = f"TXN{uuid.uuid4().hex[:10].upper()}"
 
-    commission_rate = await get_commission_rate(user, body.service, body.operator)
+    commission_rate = await get_commission_rate(user, body.service, body.operator, body.amount)
     commission = round(body.amount * commission_rate, 2) if status == "success" else 0
 
     tx = {
@@ -607,22 +607,30 @@ class CommissionRuleInput(BaseModel):
     user_id: Optional[str] = None
     role: Optional[Role] = None
     rate: float
+    min_amount: float = 0
+    max_amount: Optional[float] = None   # None = unlimited
 
-async def get_commission_rate(user, service, operator) -> float:
-    checks = [
-        {"user_id": user["user_id"], "service": service, "operator": operator},
-        {"user_id": user["user_id"], "service": service, "operator": None},
-        {"user_id": user["user_id"], "service": None, "operator": None},
+async def get_commission_rate(user, service, operator, amount) -> float:
+    scope_checks = [
+        {"user_id": user["user_id"], "role": None, "service": service, "operator": operator},
+        {"user_id": user["user_id"], "role": None, "service": service, "operator": None},
+        {"user_id": user["user_id"], "role": None, "service": None, "operator": None},
         {"user_id": None, "role": None, "service": service, "operator": operator},
         {"user_id": None, "role": None, "service": service, "operator": None},
         {"user_id": None, "role": user["role"], "service": service, "operator": operator},
         {"user_id": None, "role": user["role"], "service": service, "operator": None},
         {"user_id": None, "role": user["role"], "service": None, "operator": None},
     ]
-    for q in checks:
-        r = await db.commission_rules.find_one(q)
+    amount_clause = {
+        "min_amount": {"$lte": amount},
+        "$or": [{"max_amount": None}, {"max_amount": {"$gte": amount}}],
+    }
+    for scope in scope_checks:
+        q = {**scope, **amount_clause}
+        # pick highest-priority (narrowest range first): smallest max_amount, then largest min_amount
+        r = await db.commission_rules.find(q).sort([("max_amount", 1), ("min_amount", -1)]).to_list(1)
         if r:
-            return float(r["rate"])
+            return float(r[0]["rate"])
     return DEFAULT_COMMISSION
 
 @api.get("/commissions")
@@ -634,6 +642,8 @@ async def list_commissions(user=Depends(require_role("admin"))):
 async def create_commission(body: CommissionRuleInput, user=Depends(require_role("admin"))):
     if body.rate < 0 or body.rate > 1:
         raise HTTPException(400, "Rate must be between 0 and 1 (e.g. 0.025 for 2.5%)")
+    if body.max_amount is not None and body.max_amount < body.min_amount:
+        raise HTTPException(400, "max_amount must be >= min_amount")
     doc = {
         "id": new_id("cm"),
         "service": body.service or None,
@@ -641,6 +651,8 @@ async def create_commission(body: CommissionRuleInput, user=Depends(require_role
         "user_id": body.user_id or None,
         "role": body.role or None,
         "rate": body.rate,
+        "min_amount": float(body.min_amount or 0),
+        "max_amount": float(body.max_amount) if body.max_amount is not None else None,
         "created_at": utc_now(),
     }
     await db.commission_rules.insert_one(doc)
@@ -708,6 +720,90 @@ async def update_me(body: UpdateMeInput, user=Depends(get_current_user)):
     if updates:
         await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
     return {"ok": True}
+
+
+# ---------- Reports ----------
+async def _scope_query(user):
+    if user["role"] == "retailer":
+        return {"user_id": user["user_id"]}
+    if user["role"] == "distributor":
+        child_ids = [u["user_id"] async for u in db.users.find({"parent_id": user["user_id"]}, {"user_id": 1})]
+        return {"user_id": {"$in": [user["user_id"]] + child_ids}}
+    if user["role"] == "master_distributor":
+        d_ids = [u["user_id"] async for u in db.users.find({"parent_id": user["user_id"]}, {"user_id": 1})]
+        r_ids = []
+        for did in d_ids:
+            r_ids += [u["user_id"] async for u in db.users.find({"parent_id": did}, {"user_id": 1})]
+        return {"user_id": {"$in": [user["user_id"]] + d_ids + r_ids}}
+    return {}
+
+@api.get("/reports/summary")
+async def reports_summary(user=Depends(get_current_user), start: Optional[str] = None, end: Optional[str] = None):
+    scope = await _scope_query(user)
+    match = {**scope, "status": "success"}
+    if start: match["created_at"] = {**match.get("created_at", {}), "$gte": start}
+    if end: match["created_at"] = {**match.get("created_at", {}), "$lte": end}
+
+    pipeline_role = [{"$match": match}, {"$group": {
+        "_id": "$user_role", "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}
+    }}, {"$sort": {"amount": -1}}]
+    by_role = await db.transactions.aggregate(pipeline_role).to_list(20)
+
+    pipeline_service = [{"$match": match}, {"$group": {
+        "_id": "$service", "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}
+    }}, {"$sort": {"amount": -1}}]
+    by_service = await db.transactions.aggregate(pipeline_service).to_list(20)
+
+    pipeline_operator = [{"$match": match}, {"$group": {
+        "_id": {"service": "$service", "operator": "$operator"},
+        "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}
+    }}, {"$sort": {"amount": -1}}, {"$limit": 30}]
+    by_operator = await db.transactions.aggregate(pipeline_operator).to_list(30)
+
+    pipeline_user = [{"$match": match}, {"$group": {
+        "_id": {"user_id": "$user_id", "user_name": "$user_name", "user_role": "$user_role"},
+        "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}
+    }}, {"$sort": {"amount": -1}}, {"$limit": 20}]
+    by_user = await db.transactions.aggregate(pipeline_user).to_list(20)
+
+    slabs = [
+        {"label": "0 – 99",       "min": 0,    "max": 99.99},
+        {"label": "100 – 499",   "min": 100,  "max": 499.99},
+        {"label": "500 – 999",   "min": 500,  "max": 999.99},
+        {"label": "1000 – 4999", "min": 1000, "max": 4999.99},
+        {"label": "5000+",       "min": 5000, "max": None},
+    ]
+    by_slab = []
+    for s in slabs:
+        cond = {**match, "amount": {"$gte": s["min"]}}
+        if s["max"] is not None:
+            cond["amount"]["$lte"] = s["max"]
+        agg = await db.transactions.aggregate([
+            {"$match": cond},
+            {"$group": {"_id": None, "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}}}
+        ]).to_list(1)
+        row = agg[0] if agg else {"count": 0, "amount": 0, "commission": 0}
+        by_slab.append({"label": s["label"], "count": row["count"], "amount": row["amount"], "commission": row["commission"]})
+
+    # daily last 30d
+    since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    daily = await db.transactions.aggregate([
+        {"$match": {**match, "created_at": {"$gte": since}}},
+        {"$group": {
+            "_id": {"$substr": ["$created_at", 0, 10]},
+            "count": {"$sum": 1}, "amount": {"$sum": "$amount"}, "commission": {"$sum": "$commission"}
+        }},
+        {"$sort": {"_id": 1}},
+    ]).to_list(60)
+
+    return {
+        "by_role": [{"role": r["_id"], **{k: r[k] for k in ("count", "amount", "commission")}} for r in by_role],
+        "by_service": [{"service": r["_id"], **{k: r[k] for k in ("count", "amount", "commission")}} for r in by_service],
+        "by_operator": [{"service": r["_id"]["service"], "operator": r["_id"]["operator"], **{k: r[k] for k in ("count", "amount", "commission")}} for r in by_operator],
+        "by_user": [{"user_id": r["_id"]["user_id"], "user_name": r["_id"]["user_name"], "user_role": r["_id"]["user_role"], **{k: r[k] for k in ("count", "amount", "commission")}} for r in by_user],
+        "by_slab": by_slab,
+        "daily": daily,
+    }
 
 
 # ---------- Mount ----------

@@ -15,6 +15,7 @@ import WalletPage from "@/pages/Wallet";
 import Transactions from "@/pages/Transactions";
 import UsersPage from "@/pages/Users";
 import Commissions from "@/pages/Commissions";
+import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import { Toaster } from "sonner";
 
@@ -56,6 +57,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>
