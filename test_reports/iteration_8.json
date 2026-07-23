@@ -1,0 +1,45 @@
+{
+  "summary": "Validated the Vercel uv/pyproject.toml deploy-manifest fix. Created /app/backend/tests/test_uv_pyproject.py with 16 tests covering pyproject.toml schema, uv.lock header + locked packages, `uv lock --check`, `uv sync --frozen` (with .venv cleanup), version-pin compatibility with requirements.txt, and vercel.json backend service. All 16 tests PASSED. Backend regression via curl: admin login -> 200 with token, /api/wallet/balance -> 200 with numeric balance (0.0), /api/operators -> 200 with 4 categories (mobile_prepaid, dth, electricity, data_card). /app/backend/.venv is absent (properly cleaned).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "N/A (test-only drift)",
+        "issue": "Iteration 6 test test_vercel_deploy_config.py::TestVercelManifest::test_frontend_service_config asserts buildCommand == 'yarn build' but iteration 7 intentionally changed it to 'CI=false yarn build'. Pre-existing test assertion needs updating; production behavior is correct (yarn is still used, CI=false only suppresses CRA warnings-as-errors). Not caused by this iteration."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_uv_pyproject.py",
+    "/app/test_reports/pytest/iteration_8_uv.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Update /app/backend/tests/test_vercel_deploy_config.py::test_frontend_service_config to accept 'CI=false yarn build' (or any command containing 'yarn build' + no 'npm'). Pre-existing, not blocking this deploy fix."
+  ],
+  "critical_code_review_comments": [
+    "pyproject.toml correctly declares dep-only workspace via [tool.uv].package = false — no accidental sdist build on Vercel.",
+    "requirements.txt still contains dev/build-only packages (pytest, black, isort, flake8, mypy, boto3, pandas, numpy, emergentintegrations) that are NOT in pyproject.toml. This is intentional: Vercel uses pyproject.toml for runtime install and skipping those keeps cold-start slim. But it means anyone doing `pip install -r requirements.txt` locally gets more than `uv sync` gets on Vercel. Consider documenting this divergence in a README note.",
+    "uv.lock resolved pydantic 2.13.4 (>= 2.6.4 from pyproject) — much newer than any pin. This is fine because bcrypt/fastapi versions are hard-pinned, but future `uv lock` runs may drift pydantic-core. Acceptable for now.",
+    "email-validator, python-multipart, tzdata are declared in pyproject.toml but server.py must actually import/use them at runtime — spot check confirms email-validator is transitively required by pydantic EmailStr, python-multipart by FastAPI form handling. All good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_uv_pyproject.py (NEW)",
+    "/app/test_reports/pytest/iteration_8_uv.xml (generated)",
+    "/app/test_reports/iteration_8.json (NEW)"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 iteration-scoped tests + backend endpoint regression via curl)",
+    "frontend": "N/A (backend-only iteration)"
+  },
+  "test_credentials": "admin@rechargepro.com / Admin@12345 (from /app/memory/test_credentials.md) — verified working",
+  "seed_data_creation": "None. .venv created during uv sync test was cleaned up (rm -rf /app/backend/.venv).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The Vercel uv-deploy fix (pyproject.toml + uv.lock in /app/backend) is validated end-to-end. `uv lock --check` and `uv sync --frozen` both succeed from a clean state. Next testing agent should reuse /app/backend/tests/test_uv_pyproject.py as a regression guard whenever backend deps change. Also note: iteration 6's test_frontend_service_config has stale assertion for buildCommand — update to substring check ('yarn build' in cmd) to unblock CI while keeping the anti-npm guard.",
+  "rca_of_the_issue": "Original bug: Vercel's Python services runtime uses `uv` (not pip) and requires a pyproject.toml + uv.lock at the service root. Backend only had requirements.txt → `uv lock` failed → deploy aborted. Fix: added minimal pyproject.toml declaring the 12 runtime deps (with [tool.uv].package=false to mark as dep-only workspace) plus a generated uv.lock resolving 27 packages. Verified locally that `uv lock --check` reports no drift and `uv sync --frozen` installs a working env (fastapi, motor, pymongo, pydantic all present). No changes to server.py, vercel.json, or the running supervisor backend."
+}
