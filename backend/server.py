@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, EmailStr
 # can respond with a helpful diagnostic) even when env vars are missing.
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 db_name = os.environ.get('DB_NAME', 'test_database')
+_MONGO_URL_MISSING = 'MONGO_URL' not in os.environ
 client = AsyncIOMotorClient(mongo_url)
 db = client[db_name]
 
@@ -83,6 +84,12 @@ api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("rechargepro")
+
+# Loud startup log so the target Mongo host is visible in deployment logs.
+_mongo_host_safe = mongo_url.split("@")[-1].split("/")[0] if "@" in mongo_url else mongo_url
+logger.info(f"Mongo config → host={_mongo_host_safe} db={db_name} env_MONGO_URL_set={not _MONGO_URL_MISSING}")
+if _MONGO_URL_MISSING:
+    logger.warning("MONGO_URL env var is NOT SET — falling back to mongodb://localhost:27017 which will fail on Vercel/production. Set MONGO_URL to your MongoDB Atlas connection string.")
 
 
 # ---------- Utils ----------
@@ -243,7 +250,10 @@ async def login(body: LoginInput):
         raise
     except Exception as e:
         logger.exception(f"login db lookup failed: {e}")
-        raise HTTPException(500, f"Database error: {type(e).__name__}. Check backend logs and MONGO_URL / IP allowlist.")
+        hint = ""
+        if _MONGO_URL_MISSING or "localhost:27017" in str(e):
+            hint = " MONGO_URL env var is not set on this deployment — set it to your MongoDB Atlas connection string and redeploy."
+        raise HTTPException(500, f"Database error: {type(e).__name__}.{hint} Check /api/health for full diagnostics.")
     if not user or not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(401, "Invalid email or password")
     if user.get("status") == "blocked":
@@ -267,7 +277,7 @@ async def health():
             "ADMIN_EMAIL_set": bool(os.environ.get("ADMIN_EMAIL")),
             "ADMIN_PASSWORD_set": bool(os.environ.get("ADMIN_PASSWORD")),
         },
-        "mongo": {"ok": False, "error": None, "admin_seeded": False, "user_count": 0},
+        "mongo": {"ok": False, "error": None, "admin_seeded": False, "user_count": 0, "host": mongo_url.split("@")[-1].split("/")[0] if "@" in mongo_url else mongo_url.replace("mongodb://", "").split("/")[0]},
     }
     try:
         # ping the DB

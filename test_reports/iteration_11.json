@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 11 validates the /api/health.mongo.host redaction fix and the Atlas connection. 23/23 pytest assertions PASS against https://recharge-hub-184.preview.emergentagent.com. /api/health.mongo.host returns 'atlas-purple-ball.wvr7dp7.mongodb.net' with no '@' character (password stripped) and no 'localhost'. env.MONGO_URL_set is true. Full Atlas flow verified end-to-end: admin login (200, role=admin), wrong password 401, POST /api/users creates fresh retailer (itest_retailer_<hex>@example.com, prefixed for easy cleanup), POST /api/wallet/transfer credits 500.00, retailer login succeeds, POST /api/recharge (mobile_prepaid/airtel/100) returns success with commission_rate=0.02 and commission=2.00, transaction persists in /api/transactions and the retailer ledger contains recharge + commission + transfer_in rows. Regression: /api/wallet/ledger, /api/operators, /api/reports/summary, /api/commissions all 200 with admin token. Static source-code guards verified: server.py contains _MONGO_URL_MISSING flag derived from `'MONGO_URL' not in os.environ`, the startup 'Mongo config → host=...' log with the NOT-SET warning branch, the login 500 hint 'MONGO_URL env var is not set on this deployment' guarded by a 'localhost:27017' substring check, and the health endpoint host redaction via split('@'). Reset-scenario (missing MONGO_URL restart) skipped as requested since it would require supervisor changes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/health",
+        "issue": "The redaction in /api/health only strips creds via `split('@')[-1].split('/')[0]`. If the connection string ever omits '@' (e.g. some SRV strings without user:pass) the code falls back to `mongo_url.replace('mongodb://', '').split('/')[0]` — this branch is NOT covered by tests because our Atlas URL always has '@'. Non-blocking, but consider adding a test with a credential-less mongodb://host:27017 URI to lock the behavior."
+      },
+      {
+        "endpoint": "N/A",
+        "issue": "PytestRemovedIn10Warning still present on the module `src` fixture inside TestServerSourceGuards (instance-method class-scoped). Purely cosmetic; test passes."
+      },
+      {
+        "endpoint": "N/A",
+        "issue": "Legacy @app.on_event('startup')/'shutdown') handlers still coexist with the lifespan context manager (both call _ensure_admin_seeded). Idempotent so harmless, but the on_event decorators are deprecated in newer Starlette. (Repeat of iteration-9/10.)"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_atlas_and_health_host.py",
+    "/app/test_reports/pytest/iteration_11_atlas.xml"
+  ],
+  "action_items": [
+    "USER ACTION (out of code scope): the reported 500-on-login is happening on the user's Vercel deployment because MONGO_URL / DB_NAME are NOT set in Vercel environment variables. The user must add MONGO_URL (pointing at their Atlas cluster with a properly URL-encoded password) + DB_NAME=rechargepro + JWT_SECRET + ADMIN_EMAIL + ADMIN_PASSWORD in the Vercel project settings, ensure Atlas Network Access allowlists 0.0.0.0/0 (or Vercel egress IPs), then redeploy. After redeploy, GET /api/health on the Vercel URL must show env.MONGO_URL_set=true, mongo.ok=true, mongo.host=<atlas-hostname>, and admin_seeded=true.",
+    "OPTIONAL: remove the legacy @app.on_event handlers now that lifespan covers indexing + seeding + client.close(). Cleans up DeprecationWarning.",
+    "OPTIONAL: add a unit test for the credential-less MONGO_URL redaction branch (mongodb://host:port with no user:pass)."
+  ],
+  "critical_code_review_comments": [
+    "The `mongo.host` field is computed twice — once at module init (`_mongo_host_safe`, used only in the startup log) and again inline inside the /api/health handler using the same split logic. Extract into a helper `_safe_mongo_host(url)` and reuse; avoids drift if one is later changed and the other isn't.",
+    "The 500 body hint appended by the login handler (`Database error: {type}. MONGO_URL env var is not set on this deployment... Check /api/health for full diagnostics.`) is informative but leaks the exception class name to the client. Fine for an internal debug deploy; on a public Vercel URL this reveals slightly more than necessary. Consider making the class name log-only and keeping only the hint + pointer to /api/health in the client response.",
+    "The self-heal resync inside _ensure_admin_seeded (overwrites password_hash from env if verify_password fails) still surprises operators who rotate the admin password via /api/me — the very next login will overwrite that rotation with ADMIN_PASSWORD from env. Consider gating this behind an env flag (ADMIN_PASSWORD_ENFORCE=1) OR only resyncing when password_hash is empty / not a bcrypt hash (starts with $2). (Repeat from iterations 9/10.)",
+    "server.py is now 905 lines — approaching the 700-line-split guideline. A refactor into routers/auth.py, routers/wallet.py, routers/recharge.py, routers/reports.py + a services module would keep future changes isolated.",
+    "requests library imported as _http (line 639) is used synchronously inside async /api/auth/session — blocks the event loop for up to 10s. Should be httpx.AsyncClient. Pre-existing.",
+    "logger is initialized AFTER _ensure_admin_seeded is defined but referenced inside it. Only bites at import time (never called from module scope during import), but a future refactor could break this. Move logging.basicConfig()+getLogger() above the seed function."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_atlas_and_health_host.py (NEW - 23 assertions, focused on iteration-11 changes)",
+    "/app/test_reports/pytest/iteration_11_atlas.xml (generated)",
+    "/app/test_reports/iteration_11.json (NEW)"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23 pytest assertions against preview URL pointing at user's Atlas cluster)",
+    "frontend": "not tested this iteration (backend only per review request)"
+  },
+  "test_credentials": "admin@rechargepro.com / Admin@12345 (verified working on the user's Atlas cluster). Retailer credential created for the test run: itest_retailer_<random-hex-8>@example.com / Retailer@12345 (persisted in Atlas — see seed_data_creation).",
+  "seed_data_creation": "Created 1 test retailer per test-suite run in the user's Atlas rechargepro DB. Email pattern: itest_retailer_<8-char-hex>@example.com, name 'itest Retailer <8-char-hex>'. Wallet was credited 500.00 and one Airtel mobile_prepaid 100 recharge was executed (success), creating 1 transaction and ~3 wallet_ledger rows (transfer_in, recharge, commission). This iteration's run created exactly one such retailer. All test data is prefixed 'itest_' as requested so the user can bulk-delete via `db.users.deleteMany({email: /^itest_/})`, `db.transactions.deleteMany({user_id: /^ret_/, user_name: /^itest/})`, `db.wallet_ledger.deleteMany({by_name: /^itest/})` (or by the user_ids returned in test logs).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend .env now points at the user's Atlas cluster (mongodb+srv://.../rechargepro). Any mongosh-based tests from iteration 10 (test_health_and_login_resilience.py) will still target local mongodb://localhost:27017/test_database and are therefore SKIPPABLE / STALE relative to the live backend. Use test_atlas_and_health_host.py for iteration-11 regression — it hits Atlas via BASE_URL only, no direct mongo shelling. If you need to run resilience tests (garbage password_hash) against Atlas, either (a) point mongosh at MONGO_URL from backend/.env, or (b) mutate via authenticated PATCH /api/me which is safer. To run: `cd /app && PYTEST_ADDOPTS='-o addopts=' python -m pytest backend/tests/test_atlas_and_health_host.py -v`.",
+  "rca_of_the_issue": "User bug: 'localhost:27017: [Errno 111] Connection refused' 500 on Vercel login. Root cause is deployment configuration, not code — MONGO_URL env var is missing on the Vercel service so the module-level fallback (mongodb://localhost:27017) kicks in and Vercel has no local Mongo. This iteration adds three diagnostic surfaces to make the failure mode obvious: (1) module-level `_MONGO_URL_MISSING` flag + startup log line `Mongo config → host=... env_MONGO_URL_set=<bool>` and a WARNING branch when the env is missing — verified present in source; (2) /api/health.mongo.host returns the actual redacted target host so operators can see immediately whether the process is pointed at Atlas or fell back to localhost — verified live: preview shows 'atlas-purple-ball.wvr7dp7.mongodb.net'; (3) login handler now appends 'MONGO_URL env var is not set on this deployment — set it to your MongoDB Atlas connection string and redeploy.' to the 500 body when the exception mentions localhost:27017 — verified in source. Actual fix (setting env vars on Vercel) is out-of-scope for this container; the user must do that on their Vercel dashboard and redeploy."
+}
