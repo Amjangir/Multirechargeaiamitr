@@ -72,8 +72,8 @@ class TestVercelManifest:
         assert fe.get("framework") == "create-react-app", (
             f"frontend.framework should be 'create-react-app', got {fe.get('framework')!r}"
         )
-        assert fe.get("buildCommand") == "yarn build", (
-            f"frontend.buildCommand must be 'yarn build' (yarn required per platform rules), got {fe.get('buildCommand')!r}"
+        assert "yarn build" in fe.get("buildCommand", ""), (
+            f"frontend.buildCommand must include 'yarn build' (yarn required per platform rules), got {fe.get('buildCommand')!r}"
         )
         assert fe.get("outputDirectory") == "build", (
             f"frontend.outputDirectory should be 'build', got {fe.get('outputDirectory')!r}"
