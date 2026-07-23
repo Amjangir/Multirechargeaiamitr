@@ -22,10 +22,12 @@ export default function Recharge() {
       setOperators(r.data);
       setOperator(r.data[service][0].code);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (operators[service]) setOperator(operators[service][0].code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [service, operators]);
 
   const submit = async (e) => {

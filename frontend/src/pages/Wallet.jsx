@@ -21,6 +21,7 @@ export default function WalletPage() {
       api.get("/users").then((r) => setDownline(r.data));
     }
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [user.role]);
 
   const submit = async (e) => {
