@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 6: Vercel deploy-config validation + backend regression smoke — ALL 12 TESTS PASS. Verified /app/vercel.json parses as valid JSON and matches Vercel's documented `services` schema (top-level services.frontend + services.backend + top-level rewrites). Frontend service: root=frontend, framework=create-react-app, buildCommand='yarn build' (yarn required per platform rule — confirmed no npm), outputDirectory=build. Backend service: root=backend, entrypoint='server:app' — cross-checked with /app/backend/server.py which exposes `app = FastAPI(title=\"RechargePro API\")` at module level. Rewrites: /api/(.*) → service backend, /(.*) → service frontend, and /api rewrite comes BEFORE the catch-all (index 0 < index 1) so /api requests won't be swallowed by the frontend. Legacy /app/frontend/vercel.json confirmed REMOVED (no conflict). Backend regression smoke against the external URL https://recharge-hub-184.preview.emergentagent.com: GET /api/auth/me without token → 401 (backend live), POST /api/auth/login with admin@rechargepro.com/Admin@12345 → 200 with access_token, GET /api/wallet/balance with admin bearer → 200 with numeric `balance` field, and GET / → 200 HTML containing React root div. Removing frontend/vercel.json produced ZERO runtime regression. Schema shape independently verified via web docs (vercel.com/docs/services).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_vercel_deploy_config.py",
+    "/app/test_reports/pytest/iteration_6_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "vercel.json rewrite order is correct today: /api/(.*) is listed BEFORE /(.*). If anyone edits this file, the order MUST be preserved — reversing it would route every /api/* call to the frontend service and the backend would appear dead.",
+    "vercel.json does not declare a Python version for the backend service. Vercel auto-detects from requirements.txt / runtime, but if deploy fails with a Python-version error the fix is to add `services.backend.runtime` or a `runtime.txt` in /app/backend.",
+    "services.backend.entrypoint='server:app' assumes Vercel's Python service runs the module from the service `root` (i.e. cwd=/backend). Because server.py is at /app/backend/server.py, this is correct. If server.py is ever moved into a subpackage (e.g. app/main.py), the entrypoint must be updated to match.",
+    "services.frontend has no `devCommand` — Vercel will default to `yarn start` for CRA which is fine, but if a preview build ever needs a different command it should be added explicitly.",
+    "No `env`/`build.env` block in vercel.json — REACT_APP_BACKEND_URL will need to be set in the Vercel project's Environment Variables UI at deploy time. Worth calling out in DEPLOYMENT.md if not already.",
+    "Backend CORS_ORIGINS='*' is fine for preview but should be locked to the Vercel domain for production."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_vercel_deploy_config.py (new — 12 pytest cases: 8 static schema + 4 runtime smoke)"
+  ],
+  "success_rate": {"backend": "12/12 (100%) — 8 manifest schema + 4 runtime smoke", "frontend": "N/A (backend-only iteration per review request)"},
+  "test_credentials": "Admin: admin@rechargepro.com / Admin@12345 (from /app/memory/test_credentials.md — used, unchanged, still valid).",
+  "seed_data_creation": "None. Only read-only calls (login + wallet balance + / HTML).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Vercel manifest at /app/vercel.json uses the modern `services` schema (services.frontend + services.backend + top-level rewrites). If future work reintroduces /app/frontend/vercel.json or /app/backend/vercel.json, that will CONFLICT with the root services config — Vercel will error at deploy time. Backend entrypoint is 'server:app' which points at /app/backend/server.py exposing `app = FastAPI()` at module level; if server.py is refactored this entrypoint must change. Regression suite for this deploy-config change: /app/backend/tests/test_vercel_deploy_config.py — reuse for any future vercel.json edits. Prior regression suites still valid: /app/backend/tests/test_backend.py and /app/backend/tests/test_slabs_and_reports.py. Public URL for testing: https://recharge-hub-184.preview.emergentagent.com. Admin login returns `access_token` (not `token`) in the JSON body — remember for future auth tests.",
+  "rca of the issue": "N/A — this iteration was a deploy-manifest fix, not a runtime bug. Root cause of user's original complaint ('vercel.json required to deploy projects with multiple services'): Vercel's newer `services` schema requires a single root-level vercel.json declaring both services and using top-level rewrites to expose them, but the repo had a per-frontend vercel.json (/app/frontend/vercel.json) and no root config. Fix applied by main agent: (a) delete /app/frontend/vercel.json, (b) create /app/vercel.json with services.frontend + services.backend + rewrites [/api/(.*) → backend, /(.*) → frontend]. Validated schema matches vercel.com/docs/services, points at real code (server:app resolves to /app/backend/server.py), uses yarn per platform rules, and rewrite ordering routes /api correctly. Zero runtime regression confirmed via 4 live smoke calls."
+}
