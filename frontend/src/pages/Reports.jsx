@@ -33,14 +33,14 @@ export default function Reports() {
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-300">Insights</div>
           <h1 className="text-3xl font-semibold mt-1" style={{ fontFamily: "Outfit" }}>Reports</h1>
         </div>
-        <div className="flex items-end gap-3">
-          <label className="block">
+        <div className="flex items-end gap-3 w-full sm:w-auto">
+          <label className="block flex-1 sm:flex-none">
             <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 flex items-center gap-1"><CalendarDays size={12} /> From</span>
-            <input data-testid="report-start" type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} className="input-dark mt-1" />
+            <input data-testid="report-start" type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} className="input-dark mt-1 w-full" />
           </label>
-          <label className="block">
+          <label className="block flex-1 sm:flex-none">
             <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500">To</span>
-            <input data-testid="report-end" type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} className="input-dark mt-1" />
+            <input data-testid="report-end" type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} className="input-dark mt-1 w-full" />
           </label>
         </div>
       </div>
@@ -129,11 +129,11 @@ function Kpi({ label, value, testid, accent }) {
 
 function Table({ title, testid, rows, cols }) {
   return (
-    <div className="card-surface overflow-hidden" data-testid={testid}>
+    <div className="card-surface overflow-x-auto" data-testid={testid}>
       <div className="p-5 border-b border-white/5">
         <h3 className="text-lg font-semibold" style={{ fontFamily: "Outfit" }}>{title}</h3>
       </div>
-      <table className="w-full text-sm">
+      <table className="w-full text-sm min-w-[520px]">
         <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.15em] text-slate-500">
           <tr>
             {cols.map((c) => (<th key={c.key} className={`p-3 ${c.right ? "text-right" : "text-left"}`}>{c.label}</th>))}

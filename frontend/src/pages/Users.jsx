@@ -42,8 +42,8 @@ export default function UsersPage() {
         )}
       </div>
 
-      <div className="card-surface overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-surface overflow-x-auto">
+        <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.15em] text-slate-500">
             <tr>
               <th className="text-left p-4">Name</th>
@@ -118,8 +118,8 @@ function CreateUserModal({ user, onClose, onCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <form onSubmit={submit} className="card-elevated p-8 w-full max-w-md space-y-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <form onSubmit={submit} className="card-elevated p-6 sm:p-8 w-full max-w-md space-y-4 my-8">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold" style={{ fontFamily: "Outfit" }}>Add new user</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-sm">Cancel</button>
@@ -167,8 +167,8 @@ function EditUserModal({ target, viewer, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <form onSubmit={submit} className="card-elevated p-8 w-full max-w-md space-y-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <form onSubmit={submit} className="card-elevated p-6 sm:p-8 w-full max-w-md space-y-4 my-8">
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold" style={{ fontFamily: "Outfit" }}>Edit {target.name}</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white text-sm">Cancel</button>

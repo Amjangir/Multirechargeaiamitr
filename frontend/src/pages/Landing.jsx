@@ -6,22 +6,22 @@ export default function Landing() {
     <div className="relative z-10 min-h-screen">
       {/* Nav */}
       <nav className="glass sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-md accent-bg flex items-center justify-center">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-md accent-bg flex items-center justify-center shrink-0">
               <ShieldCheck size={18} />
             </div>
-            <span className="font-semibold tracking-tight text-lg" style={{ fontFamily: "Outfit" }}>RechargePro</span>
+            <span className="font-semibold tracking-tight text-base sm:text-lg truncate" style={{ fontFamily: "Outfit" }}>RechargePro</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Link to="/login" data-testid="nav-login-link" className="btn-ghost text-sm">Sign in</Link>
-            <Link to="/signup" data-testid="nav-signup-link" className="btn-primary text-sm">Get Started <ArrowRight size={16} className="inline ml-1" /></Link>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <Link to="/login" data-testid="nav-login-link" className="btn-ghost text-xs sm:text-sm px-3 sm:px-5 py-2">Sign in</Link>
+            <Link to="/signup" data-testid="nav-signup-link" className="btn-primary text-xs sm:text-sm px-3 sm:px-5 py-2 whitespace-nowrap">Get Started <ArrowRight size={14} className="inline ml-1" /></Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="max-w-7xl mx-auto px-6 pt-20 pb-24 grid md:grid-cols-12 gap-10">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-16 sm:pb-24 grid md:grid-cols-12 gap-10">
         <div className="md:col-span-7 animate-fade-up">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/5 text-cyan-300 text-xs uppercase tracking-[0.2em]">
             <Sparkles size={13} /> Fintech-grade recharge platform
@@ -65,7 +65,7 @@ export default function Landing() {
       </section>
 
       {/* Bento features */}
-      <section className="max-w-7xl mx-auto px-6 pb-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           <Card className="md:col-span-7" title="One wallet, four roles" icon={Wallet} desc="Admins fund the ecosystem. Master Distributors and Distributors move funds down the chain. Retailers spend, earn commissions, and never see a bank." />
           <Card className="md:col-span-5" title="All utilities, one form" icon={Zap} desc="Mobile Prepaid, DTH, Electricity, Data Card — each with operators, circles, and a 90%+ mock success rate to demo instantly." />
@@ -75,7 +75,7 @@ export default function Landing() {
       </section>
 
       {/* Roles */}
-      <section className="max-w-7xl mx-auto px-6 pb-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24">
         <div className="mb-10">
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-300">Built for hierarchy</div>
           <h2 className="text-3xl sm:text-4xl font-semibold mt-2" style={{ fontFamily: "Outfit" }}>A dashboard for every seat at the table</h2>
@@ -100,8 +100,8 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section className="max-w-5xl mx-auto px-6 pb-24">
-        <div className="card-elevated p-10 md:p-14 relative overflow-hidden">
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 sm:pb-24">
+        <div className="card-elevated p-6 sm:p-10 md:p-14 relative overflow-hidden">
           <div className="relative z-10">
             <h2 className="text-3xl sm:text-4xl font-semibold" style={{ fontFamily: "Outfit" }}>
               Ready to <span className="accent-text">recharge</span> your business?

@@ -95,17 +95,17 @@ export default function WalletPage() {
         <div className="divide-y divide-white/5">
           {ledger.length === 0 && <div className="p-6 text-slate-500 text-sm">No wallet activity yet.</div>}
           {ledger.map((l) => (
-            <div key={l.id} className="flex items-center justify-between px-5 py-3 hover:bg-white/5">
-              <div className="flex items-center gap-3">
+            <div key={l.id} className="flex items-center justify-between px-4 sm:px-5 py-3 hover:bg-white/5 gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 {l.amount >= 0
-                  ? <ArrowDownCircle className="text-emerald-400" size={18} />
-                  : <ArrowUpCircle className="text-red-400" size={18} />}
-                <div>
-                  <div className="text-sm">{l.note}</div>
+                  ? <ArrowDownCircle className="text-emerald-400 shrink-0" size={18} />
+                  : <ArrowUpCircle className="text-red-400 shrink-0" size={18} />}
+                <div className="min-w-0">
+                  <div className="text-sm truncate">{l.note}</div>
                   <div className="text-xs text-slate-500">{new Date(l.created_at).toLocaleString()} · {l.type}</div>
                 </div>
               </div>
-              <div className={`font-mono font-semibold ${l.amount >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              <div className={`font-mono font-semibold whitespace-nowrap ${l.amount >= 0 ? "text-emerald-300" : "text-red-300"}`}>
                 {l.amount >= 0 ? "+" : ""}₹ {l.amount.toFixed(2)}
               </div>
             </div>

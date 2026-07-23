@@ -70,7 +70,7 @@ export default function Recharge() {
         })}
       </div>
 
-      <form onSubmit={submit} className="card-elevated p-8 grid md:grid-cols-2 gap-6">
+      <form onSubmit={submit} className="card-elevated p-5 sm:p-8 grid md:grid-cols-2 gap-6">
         <label className="block md:col-span-2">
           <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Operator</span>
           <select data-testid="recharge-operator" value={operator} onChange={(e) => setOperator(e.target.value)} className="input-dark mt-2">
@@ -87,11 +87,11 @@ export default function Recharge() {
           <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Amount (₹)</span>
           <input data-testid="recharge-amount" required type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-dark mt-2" placeholder="299" />
         </label>
-        <div className="md:col-span-2 flex items-center justify-between mt-4">
+        <div className="md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-4">
           <div className="text-xs text-slate-500">
-            Mock gateway · ~90% success rate · 2% commission on success.
+            Mock gateway · ~90% success rate · dynamic commission by rules.
           </div>
-          <button data-testid="recharge-submit" disabled={busy} className="btn-primary flex items-center gap-2">
+          <button data-testid="recharge-submit" disabled={busy} className="btn-primary flex items-center gap-2 w-full sm:w-auto justify-center">
             {busy && <Loader2 size={16} className="animate-spin" />} Process recharge
           </button>
         </div>

@@ -21,13 +21,13 @@ export default function Transactions() {
           <div className="text-xs uppercase tracking-[0.2em] text-cyan-300">History</div>
           <h1 className="text-3xl font-semibold mt-1" style={{ fontFamily: "Outfit" }}>Transactions</h1>
         </div>
-        <div className="flex gap-3">
-          <select data-testid="filter-status" value={status} onChange={(e) => setStatus(e.target.value)} className="input-dark w-40">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <select data-testid="filter-status" value={status} onChange={(e) => setStatus(e.target.value)} className="input-dark sm:w-40">
             <option value="">All statuses</option>
             <option value="success">Success</option>
             <option value="failed">Failed</option>
           </select>
-          <select data-testid="filter-service" value={service} onChange={(e) => setService(e.target.value)} className="input-dark w-44">
+          <select data-testid="filter-service" value={service} onChange={(e) => setService(e.target.value)} className="input-dark sm:w-44">
             <option value="">All services</option>
             <option value="mobile_prepaid">Mobile Prepaid</option>
             <option value="dth">DTH</option>
@@ -37,8 +37,8 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="card-surface overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-surface overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.15em] text-slate-500">
             <tr>
               <th className="text-left p-4">Ref</th>

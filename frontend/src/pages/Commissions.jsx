@@ -55,7 +55,7 @@ export default function Commissions() {
         <p className="text-sm text-slate-400 mt-2">Rules are matched most-specific first: user + service + operator → user + service → user → service + operator → service → role → default (2%).</p>
       </div>
 
-      <form onSubmit={submit} className="card-elevated p-6 grid md:grid-cols-6 gap-3">
+      <form onSubmit={submit} className="card-elevated p-5 sm:p-6 grid md:grid-cols-6 gap-3">
         <label className="block md:col-span-1">
           <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Scope</span>
           <select data-testid="cm-scope" value={f.scope} onChange={(e) => setF({ ...f, scope: e.target.value })} className="input-dark mt-2">
@@ -114,8 +114,8 @@ export default function Commissions() {
         </div>
       </form>
 
-      <div className="card-surface overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card-surface overflow-x-auto">
+        <table className="w-full text-sm min-w-[820px]">
           <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.15em] text-slate-500">
             <tr>
               <th className="text-left p-4">Scope</th>

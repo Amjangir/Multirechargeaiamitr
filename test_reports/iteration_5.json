@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 5: Mobile responsive testing (390x800) + Desktop regression (1440x900). All acceptance criteria in the review request PASS. Landing nav fits (RechargePro logo + Sign in + Get Started all in one row, no overflow, no horizontal page scroll). Login page centered, inputs full-width (326px), Google + forgot-password link visible. AppShell on mobile: sidebar is hidden off-screen (x=-256), hamburger (data-testid='mobile-drawer-open') visible in header, wallet balance visible on the right with no clipping (x=315, w=58, ends at 373<390), header shows role (ADMIN) + name (Super Admin) truncated cleanly with 'Signed in as' hidden on mobile. Drawer flow: click open -> sidebar slides to x=0 -> backdrop visible -> nav items visible -> click backdrop closes it -> click X closes it -> click nav-transactions auto-closes + navigates. Transactions mobile: filter-status/filter-service stacked vertically both full-width (358px), table has horizontal scroll (scrollW=979 vs clientW=356). Users mobile: table scrolls (1045 vs 356), 'Add user' modal fits within viewport with 16px padding on both sides (x=16, w=358). Commissions mobile: all form fields (scope/role/service/operator/rate/min/max) stacked and full-width (316px), table scrolls (820 vs 356). Reports mobile: date inputs share a row (report-start=173px, report-end=173px both at y=180), KPI cards stack full-width (358px), 4 independent scrollable tables. Recharge mobile: service tiles use 'grid-cols-2 md:grid-cols-4' (confirmed 2-col on mobile), 'Process recharge' button is full-width (316px). Desktop 1440x900: sidebar reappears fixed on left (x=0, w=256), hamburger hidden, header shows full 'SIGNED IN AS ADMIN / Super Admin · admin@rechargepro.com / WALLET / ₹ 0.00'. Navigated to /recharge, /wallet, /transactions, /users, /commissions, /reports — no horizontal scroll (docW==winW==1440), no visible error elements. No functional regressions. All previously-tested testids remain present (login-email, login-password, login-submit, google-login-btn, forgot-link, goto-signup, app-sidebar, header-wallet-balance, logout-btn, nav-*, filter-status, filter-service, add-user-btn, create-*, edit-*, cm-*, kpi-*, report-start, report-end, table-by-*, service-*, recharge-submit).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing bottom CTA (mobile)", "issues": ["The 'I already have one' button text wraps to two lines inside its pill because the two bottom-CTA buttons are placed in a `flex gap-3` (no wrap). Not blocking — both buttons are legible and clickable — but could be improved by adding `flex-wrap` or shortening the label on <sm."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_5.json"
+  ],
+  "action_items": [
+    "OPTIONAL / LOW: Improve the Landing bottom CTA row so the 'I already have one' label doesn't wrap onto two lines on 390px width (e.g. add `flex-wrap` on the container or use `whitespace-nowrap` + smaller text on <sm)."
+  ],
+  "critical_code_review_comments": [
+    "AppShell drawer state resets on route change via `useEffect(() => setOpen(false), [loc.pathname])` — good. But note: the sidebar is `fixed md:sticky` with z-50; the mobile header has z-30 and the backdrop z-40, so ordering is correct (backdrop covers header, sidebar covers backdrop). Verified visually.",
+    "AppShell sidebar transform uses `transform transition-transform`; because it is `fixed`, it always renders even when hidden. For very slow mobile devices consider adding `pointer-events-none` when closed to avoid stray touch targets on hidden nav links. Not a bug today.",
+    "AppShell wallet polling every 8s (`setInterval`) starts before drawer usage — no leak because clearInterval on unmount. Fine.",
+    "Landing.jsx nav uses `text-xs sm:text-sm` + `px-3 sm:px-5` on both buttons. At 390px the Sign in + Get Started + logo total ~373px which fits, but on ~360px devices (older Androids) it may start touching edges. Consider `min-w-0` on nav or scaling logo further at <380px if support is needed.",
+    "Transactions/Users/Commissions all rely on `overflow-x-auto` wrapper with `min-w-[820~900px]` on the inner table. Works, but touch users only see part of table; no visual scroll indicator. Consider a subtle horizontal shadow to hint scroll.",
+    "Reports.jsx Recharts still emits `width(-1) height(-1)` warning on first paint (carried over from iteration_3/4). Cosmetic only."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested this iteration)", "frontend": "10/10 mobile + desktop-regression checks PASS"},
+  "test_credentials": "Admin: admin@rechargepro.com / Admin@12345 (used, unchanged).",
+  "seed_data_creation": "None. Only admin login used; no persistent test data created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Mobile-responsive pass is clean at 390x800 and desktop regression at 1440x900 is clean. Key mobile testids to preserve: mobile-drawer-open (hamburger in header), mobile-drawer-close (X in drawer), mobile-drawer-backdrop (dark overlay), app-sidebar. Drawer auto-closes on route change via useEffect on loc.pathname. Sidebar visibility rule: `-translate-x-full md:translate-x-0` on the aside. Header wallet balance uses `whitespace-nowrap`. Recharge service tiles: `grid-cols-2 md:grid-cols-4`. Transactions/Users/Commissions tables use `.card-surface.overflow-x-auto` wrappers with `min-w-[900|820|...]` inner tables — good horizontal scroll. If future work touches Landing nav, verify Sign in + Get Started still fit at 390px width. Backend was untouched this iteration; iteration_4 backend suite at /app/backend/tests/test_slabs_and_reports.py still applies.",
+  "rca of the issue": "N/A — original complaint 'mobile view design not correct' has been fixed. All mobile flows and layouts now render correctly at 390x800 with no horizontal overflow, sidebar cleanly converted to a slide-in drawer, and all pages have full-width form controls + horizontally scrollable tables."
+}
