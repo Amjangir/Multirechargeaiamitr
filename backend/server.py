@@ -29,7 +29,53 @@ ACCESS_TTL = timedelta(days=7)
 Role = Literal["admin", "master_distributor", "distributor", "retailer"]
 ROLE_HIERARCHY = {"admin": 4, "master_distributor": 3, "distributor": 2, "retailer": 1}
 
-app = FastAPI(title="RechargePro API")
+
+async def _ensure_admin_seeded():
+    """Idempotent: create admin from env if missing, resync password if stale.
+    Called from FastAPI lifespan AND lazily from login (so deploys without a
+    reliable startup event — e.g. Vercel Services cold start — still work)."""
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_pw = os.environ.get("ADMIN_PASSWORD")
+    if not admin_email or not admin_pw:
+        return
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await db.users.insert_one({
+            "user_id": new_id("adm"),
+            "name": "Super Admin",
+            "email": admin_email,
+            "password_hash": hash_password(admin_pw),
+            "role": "admin",
+            "wallet_balance": 0.0,
+            "parent_id": None,
+            "phone": None,
+            "status": "active",
+            "created_at": utc_now(),
+        })
+        logger.info(f"Admin seeded lazily: {admin_email}")
+    elif not verify_password(admin_pw, existing.get("password_hash", "")):
+        await db.users.update_one({"email": admin_email},
+                                  {"$set": {"password_hash": hash_password(admin_pw)}})
+        logger.info("Admin password updated from env")
+
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.transactions.create_index([("user_id", 1), ("created_at", -1)])
+        await db.wallet_ledger.create_index([("user_id", 1), ("created_at", -1)])
+        await _ensure_admin_seeded()
+    except Exception as e:
+        logger.exception(f"lifespan startup: {e}")
+    yield
+    client.close()
+
+
+app = FastAPI(title="RechargePro API", lifespan=lifespan)
 api = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -133,35 +179,17 @@ def require_role(*roles: str):
     return _dep
 
 
-# ---------- Startup ----------
+# ---------- Startup (kept for local supervisor; lifespan handler above is authoritative) ----------
 @app.on_event("startup")
 async def startup():
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("user_id", unique=True)
-    await db.transactions.create_index([("user_id", 1), ("created_at", -1)])
-    await db.wallet_ledger.create_index([("user_id", 1), ("created_at", -1)])
-
-    admin_email = os.environ.get("ADMIN_EMAIL")
-    admin_pw = os.environ.get("ADMIN_PASSWORD")
-    existing = await db.users.find_one({"email": admin_email})
-    if not existing:
-        await db.users.insert_one({
-            "user_id": new_id("adm"),
-            "name": "Super Admin",
-            "email": admin_email,
-            "password_hash": hash_password(admin_pw),
-            "role": "admin",
-            "wallet_balance": 0.0,
-            "parent_id": None,
-            "phone": None,
-            "status": "active",
-            "created_at": utc_now(),
-        })
-        logger.info(f"Admin seeded: {admin_email}")
-    elif not verify_password(admin_pw, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email},
-                                  {"$set": {"password_hash": hash_password(admin_pw)}})
-        logger.info("Admin password updated from env")
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.users.create_index("user_id", unique=True)
+        await db.transactions.create_index([("user_id", 1), ("created_at", -1)])
+        await db.wallet_ledger.create_index([("user_id", 1), ("created_at", -1)])
+        await _ensure_admin_seeded()
+    except Exception as e:
+        logger.exception(f"startup: {e}")
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -198,6 +226,10 @@ async def register(body: RegisterInput):
 @api.post("/auth/login")
 async def login(body: LoginInput):
     email = body.email.lower()
+    # Lazy admin seed on first login attempt (works even if the startup
+    # event didn't fire — common on Vercel Python Services cold starts).
+    if email == (os.environ.get("ADMIN_EMAIL") or "").lower():
+        await _ensure_admin_seeded()
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(401, "Invalid email or password")

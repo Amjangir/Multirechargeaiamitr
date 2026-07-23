@@ -31,9 +31,11 @@ Add these in Vercel → **Project → Settings → Environment Variables**. Atta
 ### Frontend service (`frontend`)
 | Key | Value |
 |---|---|
-| `REACT_APP_BACKEND_URL` | leave empty OR set to your Vercel project URL — see note below |
+| `REACT_APP_BACKEND_URL` | leave EMPTY — the frontend falls back to same-origin and uses vercel.json rewrites |
 
-**Note on `REACT_APP_BACKEND_URL`**: Because our `vercel.json` rewrites `/api/*` from the same origin to the backend service, your frontend can just call `/api/...`. But this code currently uses `${REACT_APP_BACKEND_URL}/api/...`, so set `REACT_APP_BACKEND_URL` to your Vercel project URL (e.g. `https://rechargepro.vercel.app`).
+**Why empty?** vercel.json rewrites `/api/*` to the backend service on the SAME origin. Setting `REACT_APP_BACKEND_URL` empty makes the frontend call relative `/api/...` URLs, which Vercel routes correctly. This is the simplest and most reliable option.
+
+If you deploy the backend on a **different host** (e.g. Render), then set `REACT_APP_BACKEND_URL` to the full backend URL (`https://your-api.onrender.com`).
 
 ## 4. MongoDB Atlas (free 512 MB)
 

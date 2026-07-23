@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+// Fall back to same-origin ("") when REACT_APP_BACKEND_URL is empty.
+// On Vercel, vercel.json rewrites /api/* to the backend service, so relative
+// "/api/..." works perfectly and we don't need to hard-code any URL.
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 export const API = `${BACKEND_URL}/api`;
 
 export const api = axios.create({ baseURL: API });
