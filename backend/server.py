@@ -18,11 +18,14 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 
 # ---------- Setup ----------
-mongo_url = os.environ['MONGO_URL']
+# Read Mongo config defensively so the module can still import (and /api/health
+# can respond with a helpful diagnostic) even when env vars are missing.
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+db_name = os.environ.get('DB_NAME', 'test_database')
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[db_name]
 
-JWT_SECRET = os.environ['JWT_SECRET']
+JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me-in-env')
 JWT_ALGO = "HS256"
 ACCESS_TTL = timedelta(days=7)
 
@@ -226,12 +229,22 @@ async def register(body: RegisterInput):
 @api.post("/auth/login")
 async def login(body: LoginInput):
     email = body.email.lower()
-    # Lazy admin seed on first login attempt (works even if the startup
-    # event didn't fire — common on Vercel Python Services cold starts).
-    if email == (os.environ.get("ADMIN_EMAIL") or "").lower():
-        await _ensure_admin_seeded()
-    user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user["password_hash"]):
+    try:
+        # Lazy admin seed on first login attempt (works even if the startup
+        # event didn't fire — common on Vercel Python Services cold starts).
+        # Wrapped in its own try so a seed failure doesn't turn login into 500.
+        if email == (os.environ.get("ADMIN_EMAIL") or "").lower():
+            try:
+                await _ensure_admin_seeded()
+            except Exception as e:
+                logger.exception(f"admin seed failed: {e}")
+        user = await db.users.find_one({"email": email})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"login db lookup failed: {e}")
+        raise HTTPException(500, f"Database error: {type(e).__name__}. Check backend logs and MONGO_URL / IP allowlist.")
+    if not user or not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(401, "Invalid email or password")
     if user.get("status") == "blocked":
         raise HTTPException(403, "Account is blocked")
@@ -239,6 +252,37 @@ async def login(body: LoginInput):
     user.pop("password_hash", None)
     user.pop("_id", None)
     return {"token": token, "user": user}
+
+
+@api.get("/health")
+async def health():
+    """Diagnostic endpoint for deployment troubleshooting."""
+    info = {
+        "app": "rechargepro-api",
+        "time": utc_now(),
+        "env": {
+            "MONGO_URL_set": bool(os.environ.get("MONGO_URL")),
+            "DB_NAME_set": bool(os.environ.get("DB_NAME")),
+            "JWT_SECRET_set": bool(os.environ.get("JWT_SECRET")),
+            "ADMIN_EMAIL_set": bool(os.environ.get("ADMIN_EMAIL")),
+            "ADMIN_PASSWORD_set": bool(os.environ.get("ADMIN_PASSWORD")),
+        },
+        "mongo": {"ok": False, "error": None, "admin_seeded": False, "user_count": 0},
+    }
+    try:
+        # ping the DB
+        await client.admin.command("ping")
+        info["mongo"]["ok"] = True
+        # count users + admin presence
+        info["mongo"]["user_count"] = await db.users.count_documents({})
+        admin_email = os.environ.get("ADMIN_EMAIL")
+        if admin_email:
+            info["mongo"]["admin_seeded"] = bool(
+                await db.users.find_one({"email": admin_email.lower()}, {"_id": 1})
+            )
+    except Exception as e:
+        info["mongo"]["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+    return info
 
 @api.get("/auth/me", response_model=UserOut)
 async def me(user=Depends(get_current_user)):
