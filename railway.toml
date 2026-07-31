@@ -1,33 +1,5 @@
-# Railway multi-service deployment configuration
-# Docs: https://docs.railway.app/reference/config-as-code
-
-[build]
-builder = "nixpacks"
-
-# ── Backend (FastAPI + uvicorn) ──────────────────────────────────────────────
-[services.backend]
-source = "backend"
-startCommand = "uvicorn server:app --host 0.0.0.0 --port $PORT"
-
-[services.backend.build]
-buildCommand = "pip install -r requirements.txt"
-
-# Required environment variables — set these in Railway dashboard:
-# MONGO_URL       = mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/
-# DB_NAME         = rechargepro
-# JWT_SECRET      = <64-char random hex>
-# ADMIN_EMAIL     = admin@rechargepro.com
-# ADMIN_PASSWORD  = <strong password>
-# CORS_ORIGINS    = https://<your-frontend>.railway.app
-
-# ── Frontend (React / CRA) ───────────────────────────────────────────────────
-[services.frontend]
-source = "frontend"
-startCommand = "npx serve -s build -l $PORT"
-
-[services.frontend.build]
-buildCommand = "CI=false yarn build"
-installCommand = "yarn install"
-
-# Required environment variables — set in Railway dashboard for this service:
-# REACT_APP_BACKEND_URL = https://<your-backend>.railway.app
+# Root railway.toml — tells Railway this is a monorepo.
+# Each service has its own railway.toml in its subdirectory.
+# In the Railway dashboard, create two services and set their Root Directory:
+#   Service 1 (backend)  → Root Directory = backend
+#   Service 2 (frontend) → Root Directory = frontend

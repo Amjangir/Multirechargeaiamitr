@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+buildCommand = "CI=false yarn build"
+
+[deploy]
+startCommand = "npx serve -s build -l $PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
