@@ -2,7 +2,7 @@
 name = "rechargepro-backend"
 version = "0.1.0"
 description = "RechargePro multi-role recharge platform — FastAPI backend"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.110.1",
     "uvicorn==0.25.0",

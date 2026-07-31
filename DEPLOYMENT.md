@@ -1,4 +1,50 @@
-# Railway Deployment Guide — RechargePro (Multi-Service)
+# Deployment Guide — RechargePro (Multi-Service)
+
+## Vercel deployment
+
+This repo already has a root [vercel.json](./vercel.json) that wires the `frontend/`
+and `backend/` services together and routes `/api/*` to the backend service.
+
+Important: Vercel environment variables are configured in the Vercel dashboard,
+not inside `vercel.json`. That is where `MONGO_URL` must be added.
+
+### Backend service env vars
+
+Set these in Vercel Project Settings for the `backend` service:
+
+| Key | Value |
+|---|---|
+| `MONGO_URL` | `mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/<db>` |
+| `DB_NAME` | `rechargepro` |
+| `JWT_SECRET` | Random 64-char hex |
+| `ADMIN_EMAIL` | `admin@rechargepro.com` |
+| `ADMIN_PASSWORD` | Strong password |
+| `CORS_ORIGINS` | `https://<your-frontend-domain>` |
+
+If you use preview deployments, add each allowed origin as a comma-separated
+value in `CORS_ORIGINS`.
+
+### Frontend service env vars
+
+This app already falls back to same-origin `/api` on Vercel, so `REACT_APP_BACKEND_URL`
+can be left empty. If you prefer an explicit URL, set it to your backend service
+domain.
+
+### Deployment checks
+
+After redeploying, confirm:
+
+1. `GET /api/health` returns `mongo.ok: true`
+2. `env.MONGO_URL_set` is `true`
+3. Admin login succeeds with the seeded credentials
+
+If you still see `ServerSelectionTimeoutError`, the usual causes are:
+
+1. `MONGO_URL` missing or malformed
+2. MongoDB Atlas IP allowlist not permitting Vercel
+3. Username/password in the connection string not URL-encoded correctly
+
+---
 
 Your repo has two services: `frontend/` (React/CRA) and `backend/` (FastAPI).
 Railway deploys both from the `railway.toml` at the repository root.
