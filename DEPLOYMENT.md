@@ -1,69 +1,122 @@
-# Vercel Deployment Guide — RechargePro (Multi-Service)
+# Railway Deployment Guide — RechargePro (Multi-Service)
 
-Your repo has two services: `frontend/` (React) and `backend/` (FastAPI). Vercel's newer **`services`** schema deploys both from **one** `vercel.json` at the repository root.
+Your repo has two services: `frontend/` (React/CRA) and `backend/` (FastAPI).
+Railway deploys both from the `railway.toml` at the repository root.
+
+---
 
 ## 1. Push your repo to GitHub
 
-Click "Save to GitHub" in the Emergent chat to push everything.
+```bash
+git add .
+git commit -m "chore: add Railway deployment config"
+git push
+```
 
-## 2. Import the repo on Vercel
+---
 
-- Sign in at https://vercel.com → **Add New → Project** → Import your GitHub repo.
-- **Root Directory**: leave as `./` (the root).
-- Vercel will read `/vercel.json` and detect both services automatically:
-  - `frontend` (create-react-app in `frontend/`, built with yarn)
-  - `backend` (FastAPI in `backend/`, entrypoint `server:app`)
+## 2. Create a Railway project
 
-## 3. Add environment variables
+1. Sign in at https://railway.app → **New Project → Deploy from GitHub repo**
+2. Select your repository — Railway will detect `railway.toml` automatically and set up both services.
 
-Add these in Vercel → **Project → Settings → Environment Variables**. Attach each variable to the correct service (Vercel lets you pick).
+---
 
-### Backend service (`backend`)
+## 3. Add Environment Variables
+
+Set these in Railway → each **Service → Variables tab**.
+
+### Backend service
+
 | Key | Value |
 |---|---|
-| `MONGO_URL` | connection string from MongoDB Atlas |
+| `MONGO_URL` | `mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/` |
 | `DB_NAME` | `rechargepro` |
-| `JWT_SECRET` | random 64-char hex |
+| `JWT_SECRET` | Random 64-char hex (see command below) |
 | `ADMIN_EMAIL` | `admin@rechargepro.com` |
-| `ADMIN_PASSWORD` | `Admin@12345` |
-| `CORS_ORIGINS` | `*` (same-origin via rewrites so this is safe) |
+| `ADMIN_PASSWORD` | Strong password |
+| `CORS_ORIGINS` | `https://<your-frontend>.railway.app` *(set after frontend is deployed)* |
 
-### Frontend service (`frontend`)
+Generate a strong `JWT_SECRET`:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### Frontend service
+
 | Key | Value |
 |---|---|
-| `REACT_APP_BACKEND_URL` | leave EMPTY — the frontend falls back to same-origin and uses vercel.json rewrites |
+| `REACT_APP_BACKEND_URL` | `https://<your-backend>.railway.app` *(copy from backend service domain)* |
 
-**Why empty?** vercel.json rewrites `/api/*` to the backend service on the SAME origin. Setting `REACT_APP_BACKEND_URL` empty makes the frontend call relative `/api/...` URLs, which Vercel routes correctly. This is the simplest and most reliable option.
-
-If you deploy the backend on a **different host** (e.g. Render), then set `REACT_APP_BACKEND_URL` to the full backend URL (`https://your-api.onrender.com`).
+---
 
 ## 4. MongoDB Atlas (free 512 MB)
 
 1. Sign up at https://www.mongodb.com/cloud/atlas
-2. Create a free M0 cluster.
-3. Database Access → add a user with a password.
-4. Network Access → allow `0.0.0.0/0` so Vercel can connect.
-5. Copy the connection string → set as `MONGO_URL` on the backend service.
+2. Create a free **M0** cluster.
+3. **Database Access** → add a user with a strong password.
+4. **Network Access** → add `0.0.0.0/0` so Railway can connect.
+5. Copy the connection string → paste as `MONGO_URL` in Railway.
 
-## 5. Deploy
+---
 
-Click **Deploy**. Vercel builds both services from the single root `vercel.json`.
-
-## How the routing works
+## 5. Deploy order
 
 ```
-Public request           →  Vercel rewrites  →  Service
-GET  /                   →  /                →  frontend (React)
-GET  /dashboard          →  /dashboard       →  frontend (React SPA)
-POST /api/auth/login     →  /api/auth/login  →  backend (FastAPI)
-GET  /api/wallet/balance →  /api/wallet/…    →  backend (FastAPI)
+1. Deploy backend first → note the generated domain (e.g. backend-xxx.railway.app)
+2. Set REACT_APP_BACKEND_URL on the frontend service to the backend domain
+3. Deploy frontend → note the generated domain (e.g. frontend-xxx.railway.app)
+4. Set CORS_ORIGINS on the backend service to the frontend domain
+5. Redeploy backend to pick up the new CORS setting
 ```
 
-The backend is **internal**; it's only reachable through the `/api/*` rewrite — this gives you same-origin API calls (no CORS pain).
+---
 
-## Troubleshooting
+## 6. How it works on Railway
 
-- **"vercel.json required" error in the Vercel UI**: this is fixed — `vercel.json` is now at the repo root.
-- **Backend cold start on first request**: expected on Vercel Services free tier. Second request onward is fast.
-- **500 on API calls**: check the backend service logs in Vercel → Deployments → Functions.
-- **`ModuleNotFoundError` on backend**: make sure `backend/requirements.txt` is up to date. It already is.
+```
+Public request              →  Railway service
+GET  /                      →  frontend (React SPA served by `serve`)
+GET  /dashboard             →  frontend (React SPA, client-side routing)
+POST /api/auth/login        →  backend (FastAPI via REACT_APP_BACKEND_URL)
+GET  /api/wallet/balance    →  backend (FastAPI via REACT_APP_BACKEND_URL)
+```
+
+Unlike Vercel, Railway gives each service its own domain — the frontend calls the backend
+by its absolute URL (`REACT_APP_BACKEND_URL`), not via path rewrites.
+
+---
+
+## 7. Verify the deployment
+
+Hit your backend health endpoint after deploying:
+```
+https://<your-backend>.railway.app/api/health
+```
+
+Expected response (all `true`, `ok: true`):
+```json
+{
+  "app": "rechargepro-api",
+  "env": {
+    "MONGO_URL_set": true,
+    "DB_NAME_set": true,
+    "JWT_SECRET_set": true,
+    "ADMIN_EMAIL_set": true,
+    "ADMIN_PASSWORD_set": true
+  },
+  "mongo": { "ok": true, "admin_seeded": true }
+}
+```
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `500` on API calls | Check backend Railway logs → look for `MONGO_URL` errors |
+| `CORS` errors in browser | Set `CORS_ORIGINS` to frontend domain on backend service and redeploy |
+| Frontend can't reach API | Verify `REACT_APP_BACKEND_URL` is set correctly (no trailing slash) |
+| Admin login fails | Check `/api/health` → `admin_seeded` must be `true` |
+| `JWT` warning in logs | Ensure `JWT_SECRET` is at least 32 characters long |

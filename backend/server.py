@@ -189,22 +189,6 @@ def require_role(*roles: str):
     return _dep
 
 
-# ---------- Startup (kept for local supervisor; lifespan handler above is authoritative) ----------
-@app.on_event("startup")
-async def startup():
-    try:
-        await db.users.create_index("email", unique=True)
-        await db.users.create_index("user_id", unique=True)
-        await db.transactions.create_index([("user_id", 1), ("created_at", -1)])
-        await db.wallet_ledger.create_index([("user_id", 1), ("created_at", -1)])
-        await _ensure_admin_seeded()
-    except Exception as e:
-        logger.exception(f"startup: {e}")
-
-@app.on_event("shutdown")
-async def shutdown():
-    client.close()
-
 
 # ---------- Auth Routes ----------
 @api.post("/auth/register")
@@ -893,8 +877,6 @@ async def reports_summary(user=Depends(get_current_user), start: Optional[str] =
 
 
 # ---------- Mount ----------
-app.include_router(api)
-
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -902,3 +884,5 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api)
